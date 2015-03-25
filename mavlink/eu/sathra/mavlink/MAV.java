@@ -3,10 +3,10 @@ package eu.sathra.mavlink;
 import java.util.HashSet;
 import java.util.Set;
 
-import eu.sathra.mavlink.MavLink.MSG_ATTITUDE;
-import eu.sathra.mavlink.MavLink.MSG_HEARTBEAT;
-import eu.sathra.mavlink.MavLink.MSG_SYS_STATUS;
-import eu.sathra.mavlink.MavLink.Message;
+import eu.sathra.mavlink.MAVLink.MSG_ATTITUDE;
+import eu.sathra.mavlink.MAVLink.MSG_HEARTBEAT;
+import eu.sathra.mavlink.MAVLink.MSG_SYS_STATUS;
+import eu.sathra.mavlink.MAVLink.Message;
 
 /*
  * Class representing Micro Air Vehicle
@@ -82,7 +82,7 @@ public class MAV {
 
 	private Set<MAVListener> mListeners = new HashSet<MAVListener>();
 
-	private int mSystemStatus = MavLink.MAV_STATE_POWEROFF;
+	private int mSystemStatus = MAVLink.MAV_STATE_POWEROFF;
 	private BatteryStatus mBatteryStatus = new BatteryStatus();
 	private Attitude mAttitude = new Attitude();
 
@@ -135,23 +135,23 @@ public class MAV {
 	}
 
 	public boolean isStabilizationModeEnabled() {
-		return (MavLink.MAV_MODE_STABILIZE_ARMED & mBaseMode) == mBaseMode;
+		return (MAVLink.MAV_MODE_STABILIZE_ARMED & mBaseMode) == mBaseMode;
 	}
 
 	public boolean isManualModeEnabled() {
-		return (MavLink.MAV_MODE_MANUAL_ARMED & mBaseMode) == mBaseMode;
+		return (MAVLink.MAV_MODE_MANUAL_ARMED & mBaseMode) == mBaseMode;
 	}
 
 	public boolean isGuidedModeEnabled() {
-		return (MavLink.MAV_MODE_GUIDED_ARMED & mBaseMode) == mBaseMode;
+		return (MAVLink.MAV_MODE_GUIDED_ARMED & mBaseMode) == mBaseMode;
 	}
 
 	public boolean isAutoModeEnabled() {
-		return (MavLink.MAV_MODE_AUTO_ARMED & mBaseMode) == mBaseMode;
+		return (MAVLink.MAV_MODE_AUTO_ARMED & mBaseMode) == mBaseMode;
 	}
 
 	public boolean isTestModeEnabled() {
-		return (MavLink.MAV_MODE_TEST_ARMED & mBaseMode) == mBaseMode;
+		return (MAVLink.MAV_MODE_TEST_ARMED & mBaseMode) == mBaseMode;
 	}
 
 	public int getSystemStatus() {
@@ -176,22 +176,22 @@ public class MAV {
 		}
 
 		switch (msg.getMessageId()) {
-		case MavLink.MSG_ID_ATTITUDE:
+		case MAVLink.MSG_ID_ATTITUDE:
 			onAttitudeMessage((MSG_ATTITUDE) msg);
 			break;
 
-		case MavLink.MSG_ID_SYS_STATUS:
+		case MAVLink.MSG_ID_SYS_STATUS:
 			onSystemStatusMessage((MSG_SYS_STATUS) msg);
 			break;
 
-		case MavLink.MSG_ID_HEARTBEAT:
+		case MAVLink.MSG_ID_HEARTBEAT:
 			onHeartbeatMessage((MSG_HEARTBEAT) msg);
 			break;
 		}
 
 	}
 
-	private void onAttitudeMessage(MavLink.MSG_ATTITUDE msg) {
+	private void onAttitudeMessage(MAVLink.MSG_ATTITUDE msg) {
 		Attitude previous = mAttitude;
 
 		mAttitude = new Attitude();
@@ -210,7 +210,7 @@ public class MAV {
 
 	}
 
-	private void onSystemStatusMessage(MavLink.MSG_SYS_STATUS msg) {
+	private void onSystemStatusMessage(MAVLink.MSG_SYS_STATUS msg) {
 		/*
 		 * Handle sensors
 		 */
@@ -257,7 +257,7 @@ public class MAV {
 		}
 	}
 
-	private void onHeartbeatMessage(MavLink.MSG_HEARTBEAT msg) {
+	private void onHeartbeatMessage(MAVLink.MSG_HEARTBEAT msg) {
 		boolean wasStabilizationEnabled = isStabilizationModeEnabled();
 		boolean wasManualModeEnabled = isManualModeEnabled();
 		boolean wasGuidedModeEnabled = isGuidedModeEnabled();
@@ -298,7 +298,7 @@ public class MAV {
 
 	public void sendManualControl(short roll, short pitch, short yaw,
 			short thrust) {
-		MavLink.MSG_MANUAL_CONTROL message = new MavLink.MSG_MANUAL_CONTROL(
+		MAVLink.MSG_MANUAL_CONTROL message = new MAVLink.MSG_MANUAL_CONTROL(
 				(short) 0, (short) 0, pitch, roll, thrust, yaw, 0, 0);
 	}
 }

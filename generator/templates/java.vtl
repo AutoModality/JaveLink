@@ -24,8 +24,9 @@ $string.substring(0, 1).toUpperCase()$string.substring(1, $string.length())##
 package eu.sathra.mavlink;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
-public class MavLink {
+public class MAVLink {
 	
 	private static final int PROTOCOL_VERSION = $version;
 	private static final short PACKET_START_SIGN = 0xFE; //v1.0: 0xFE; v0.9: 0x55
@@ -46,17 +47,19 @@ public class MavLink {
 	 * Message IDs
 	 */
 #foreach($message in $message_list)
-	public static final int MSG_ID_$message.name = $message.id;
+	public static final short MSG_ID_$message.name = $message.id;
 #end
 
 	public static abstract class Message {
 		
+		protected short messageId;
+		protected String messageName;
 		protected short systemId;
 		protected short componentId;
 		protected short sequenceIndex;
 	
 		public static Message decodeMessage(byte[] bytes) {
-			int messageId = bytes[5] & 0xFF;
+			short messageId = (short)(bytes[5] & 0xFF);
 		
 			switch(messageId) {
 #foreach($message in $message_list)
@@ -66,8 +69,11 @@ public class MavLink {
 			}
 		}
 	
-		protected Message(byte[] bytes) {
+		protected Message(byte[] bytes, String messageName, short messageId) {
+			this.messageName = messageName;
+			this.messageId = messageId;
 			ByteBuffer buffer = ByteBuffer.wrap(bytes);
+			buffer.order(ByteOrder.LITTLE_ENDIAN);
 			short startSign = (short)(buffer.get() & 0xFF);
 			
 			if(startSign != PACKET_START_SIGN) {
@@ -80,11 +86,11 @@ public class MavLink {
 			this.systemId = (short)(buffer.get() & 0xFF);
 			this.componentId = (short)(buffer.get() & 0xFF);
 			
-			short messageId = (short)(buffer.get() & 0xFF);
-			if(messageId != getMessageId()) {
-				throw new IllegalArgumentException("Invalid message id. Expected: " + 
-					getMessageId() + " got: " + messageId);
-			}
+			// short messageId = (short)(buffer.get() & 0xFF);
+			// if(messageId != getMessageId()) {
+			//	throw new IllegalArgumentException("Invalid message id. Expected: " + 
+			//		getMessageId() + " got: " + messageId);
+			// }
 			
 			decodePayload(buffer);
 			// TODO: CRC
@@ -95,7 +101,13 @@ public class MavLink {
 			this.componentId = componentId;
 		}
 	
-		public abstract int getMessageId();
+		public short getMessageId() {
+			return messageId;
+		}
+	
+		public String getMessageName() {
+			return messageName;
+		}
 	
 		public abstract int getLength();
 		
@@ -107,6 +119,7 @@ public class MavLink {
 		
 		public byte[] encode() {
 			ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH+getLength());
+			buffer.order(ByteOrder.LITTLE_ENDIAN);
 			
 			this.setSequenceIndex((short)0x4E); // TMP
 			
@@ -132,6 +145,29 @@ public class MavLink {
 			return bytes;
 		}
 		
+		public static byte[] encode(short length, short sequenceIndex, short systemId, short componentId, short messageId, byte[] payload, int crc) {
+			ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH+length);
+			buffer.order(ByteOrder.LITTLE_ENDIAN);
+			
+			buffer.put((byte)(PACKET_START_SIGN & 0xFF));
+			buffer.put((byte)(length & 0xFF));
+			buffer.put((byte)(sequenceIndex & 0xFF));//sequence
+			buffer.put((byte)(systemId & 0xFF));
+			buffer.put((byte)(componentId & 0xFF));
+			buffer.put((byte)(messageId & 0xFF));
+			for(byte b: payload)
+			{
+				buffer.put(b);
+			}	
+			byte[] bytes = new byte[HEADER_LENGTH+length];
+			buffer.rewind();
+			buffer.get(bytes);
+			bytes[bytes.length-2] = (byte)((crc>>8)&0xFF);
+			bytes[bytes.length-1] = (byte)((crc)&0xFF);
+
+			return bytes;
+		}
+
 		public void setSequenceIndex(short index) {
 			sequenceIndex = index;
 		}
@@ -177,7 +213,7 @@ public class MavLink {
 #end
 	
 		public MSG_$message.name (byte[] bytes) {
-			super(bytes);
+			super(bytes, "$message.name", MSG_ID_$message.name);
 		}
 	
 		public MSG_$message.name (short systemId, short componentId#foreach( $field in $message.fields ), #getJavaType($field.type) $field.name #if($field.array)[]#end #end) {
@@ -187,11 +223,6 @@ public class MavLink {
 #end		
 		}
 
-		@Override
-		public int getMessageId() {
-			return MSG_ID_$message.name;
-		}
-		
 		@Override
 		public int getLength() {
 			return $message.length;

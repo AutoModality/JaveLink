@@ -3,7 +3,11 @@ package eu.sathra.mavlink.generator;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -90,7 +94,7 @@ public class MCG {
 	private static void parseEnums(Document document,
 			VelocityContext context) {
 		NodeList docEnums = document.getElementsByTagName(ELEMENT_ENUM);
-		Set<MavEnum> enumsSet = new HashSet<MavEnum>();
+		List<MavEnum> enumsList = new ArrayList<MavEnum>();
 
 		for (int c = 0; c < docEnums.getLength(); ++c) {
 			Element myElement = (Element) docEnums.item(c);
@@ -131,10 +135,16 @@ public class MCG {
 				myEnum.addValue(myValue);
 			}
 
-			enumsSet.add(myEnum);
+			enumsList.add(myEnum);
 		}
 
-		context.put(CONTEXT_ENUMS, enumsSet);
+		Collections.sort(enumsList, new Comparator<MavEnum>() {
+			public int compare(MavEnum a, MavEnum b)
+			{
+				return a.getName().compareTo(b.getName());
+			}
+		});
+		context.put(CONTEXT_ENUMS, enumsList);
 	}
 	
 	private static void parseMessages(Document document, VelocityContext context) {
@@ -142,7 +152,7 @@ public class MCG {
 		NodeList messages = document
 				.getElementsByTagName(ELEMENT_MESSAGE);
 
-		Set<MavMessage> mMessages = new HashSet<MavMessage>();
+		List<MavMessage> mMessages = new ArrayList<MavMessage>();
 
 		for (int c = 0; c < messages.getLength(); ++c) {
 			Element myElement = (Element) messages.item(c);
@@ -201,6 +211,12 @@ public class MCG {
 			myMavMessage.setCRCExtra(crc);
 		}
 
+		Collections.sort(mMessages, new Comparator<MavMessage>() {
+			public int compare(MavMessage a, MavMessage b)
+			{
+				return a.getName().compareTo(b.getName());
+			}
+		});
 		context.put(CONTEXT_MESSAGES_LIST, mMessages);
 	}
 
