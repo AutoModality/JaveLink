@@ -63,37 +63,23 @@ public class MAVLink {
 		
 			switch(messageId) {
 #foreach($message in $message_list)
-					case MSG_ID_$message.name: return new MSG_$message.name (bytes);
+					case MSG_ID_$message.name: 
+						return new MSG_$message.name ().decode(bytes);
 #end
 					default: throw new IllegalArgumentException("Message with id=" + messageId + " is not supported.");
 			}
 		}
 	
+		protected Message(String messageName, short messageId)
+		{
+			this.messageName = messageName;
+			this.messageId = messageId;			
+		}
+		
 		protected Message(byte[] bytes, String messageName, short messageId) {
 			this.messageName = messageName;
 			this.messageId = messageId;
-			ByteBuffer buffer = ByteBuffer.wrap(bytes);
-			buffer.order(ByteOrder.LITTLE_ENDIAN);
-			short startSign = (short)(buffer.get() & 0xFF);
-			
-			if(startSign != PACKET_START_SIGN) {
-				throw new IllegalStateException("Unsupported protocol. Excepted: " + 
-					PACKET_START_SIGN + " got: " + startSign);
-			}
-			
-			buffer.get(); // payload length, ignore
-			this.sequenceIndex = (short)(buffer.get() & 0xFF);
-			this.systemId = (short)(buffer.get() & 0xFF);
-			this.componentId = (short)(buffer.get() & 0xFF);
-			
-			// short messageId = (short)(buffer.get() & 0xFF);
-			// if(messageId != getMessageId()) {
-			//	throw new IllegalArgumentException("Invalid message id. Expected: " + 
-			//		getMessageId() + " got: " + messageId);
-			// }
-			
-			decodePayload(buffer);
-			// TODO: CRC
+			decode(bytes);
 		}
 		
 		protected Message(short systemId, short componentId) {
@@ -115,6 +101,34 @@ public class MAVLink {
 		
 		protected abstract ByteBuffer decodePayload(ByteBuffer buffer);
 		
+		protected Message decode(byte[] bytes)
+		{
+			ByteBuffer buffer = ByteBuffer.wrap(bytes);
+			buffer.order(ByteOrder.LITTLE_ENDIAN);
+			short startSign = (short)(buffer.get() & 0xFF);
+			
+			if(startSign != PACKET_START_SIGN) {
+				throw new IllegalStateException("Unsupported protocol. Excepted: " + 
+					PACKET_START_SIGN + " got: " + startSign);
+			}
+			
+			buffer.get(); // payload length, ignore
+			this.sequenceIndex = (short)(buffer.get() & 0xFF);
+			this.systemId = (short)(buffer.get() & 0xFF);
+			this.componentId = (short)(buffer.get() & 0xFF);
+			
+			short tmp = (short)(buffer.get() & 0xFF); // messageID not used
+			if(tmp != getMessageId()) {
+				throw new IllegalArgumentException("Invalid message id. Expected: " + 
+					getMessageId() + " got: " + messageId);
+			 }
+			
+			decodePayload(buffer);
+			// TODO: CRC		
+			
+			return this;	
+		}
+
 		protected abstract ByteBuffer encodePayload(ByteBuffer buffer);
 		
 		public byte[] encode() {
@@ -209,9 +223,13 @@ public class MAVLink {
 	public static class MSG_$message.name extends Message {
 	
 #foreach( $field in $message.fields )
-		private #getJavaType($field.type) $field.name#if($field.array)[] = new #getJavaType($field.type)[$field.length]#end; // $field.description
+		private #getJavaType($field.type)#if($field.array)[]#end $field.name#if($field.array) = new #getJavaType($field.type)[$field.length]#end; // $field.description
 #end
 	
+		public MSG_$message.name () {
+			super("$message.name", MSG_ID_$message.name);
+		}
+
 		public MSG_$message.name (byte[] bytes) {
 			super(bytes, "$message.name", MSG_ID_$message.name);
 		}
@@ -249,9 +267,9 @@ public class MAVLink {
 #foreach($field in $message.fields)
 #if($field.array)
 			for(int c=0; c<$field.length; ++c) {
-#if($field.type == "float")
+#if($field.type.contains("float"))
 				$field.name [c] = buffer.getFloat(); // $field.type
-#elseif($field.type == "double")
+#elseif($field.type.contains("double"))
 				$field.name [c] = buffer.getDouble(); // $field.type
 #elseif($field.type.contains("8_") || $field.type.contains("char"))
 				$field.name [c] =  (#getJavaType($field.type))buffer.get()#if(!$field.signed) & 0xff#end; // $field.type
@@ -288,9 +306,9 @@ public class MAVLink {
 #foreach($field in $message.fields)
 #if($field.array)
 			for(int c=0; c<$field.length; ++c) {
-#if($field.type == "float")
+#if($field.type.contains("float"))
 				buffer.putFloat($field.name [c]); // $field.type
-#elseif($field.type == "double")
+#elseif($field.type.contains("double"))
 				buffer.putDouble($field.name [c]); // $field.type
 #elseif($field.type.contains("8_") || $field.type.contains("char"))
 				buffer.put((byte)($field.name [c]#if(!$field.signed) & 0xff#end));

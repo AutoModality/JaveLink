@@ -12,6 +12,13 @@ public class MAVLink {
 	// Mavlink constants
 	
 	/*
+	 * Content Types for data transmission handshake
+	 */
+	public static final int DATA_TYPE_JPEG_IMAGE = 1; // $value.description
+	public static final int DATA_TYPE_RAW_IMAGE = 2; // $value.description
+	public static final int DATA_TYPE_KINECT = 3; // $value.description
+ 
+	/*
 	 * Disable fenced mode
 	 */
 	public static final int FENCE_ACTION_NONE = 0; // Disable fenced mode
@@ -57,6 +64,7 @@ public class MAVLink {
 	public static final int MAV_AUTOPILOT_AUTOQUAD = 14; // AutoQuad -- http://autoquad.org
 	public static final int MAV_AUTOPILOT_ARMAZILA = 15; // Armazila -- http://armazila.com
 	public static final int MAV_AUTOPILOT_AEROB = 16; // Aerob -- http://aerob.ru
+	public static final int MAV_AUTOPILOT_ASLUAV = 17; // ASLUAV autopilot -- http://www.asl.ethz.ch
  
 	/*
 	 * Enumeration of battery functions
@@ -86,6 +94,7 @@ public class MAVLink {
 	public static final int MAV_CMD_NAV_RETURN_TO_LAUNCH = 20; // Return to launch location
 	public static final int MAV_CMD_NAV_LAND = 21; // Land at location
 	public static final int MAV_CMD_NAV_TAKEOFF = 22; // Takeoff from ground / hand
+	public static final int MAV_CMD_NAV_CONTINUE_AND_CHANGE_ALT = 30; // Continue on the current course and climb/descend to specified altitude.  When the altitude is reached continue to the next command (i.e., don't proceed to the next command until the desired altitude is reached.
 	public static final int MAV_CMD_NAV_ROI = 80; // Sets the region of interest (ROI) for a sensor set or the vehicle itself. This can then be used by the vehicles control system to control the vehicle attitude and the attitude of various sensors such as cameras.
 	public static final int MAV_CMD_NAV_PATHPLANNING = 81; // Control autonomous path planning on the MAV.
 	public static final int MAV_CMD_NAV_SPLINE_WAYPOINT = 82; // Navigate to MISSION using a spline path.
@@ -106,6 +115,7 @@ public class MAVLink {
 	public static final int MAV_CMD_DO_SET_SERVO = 183; // Set a servo to a desired PWM value.
 	public static final int MAV_CMD_DO_REPEAT_SERVO = 184; // Cycle a between its nominal setting and a desired PWM for a desired number of cycles with a desired period.
 	public static final int MAV_CMD_DO_FLIGHTTERMINATION = 185; // Terminate flight immediately
+	public static final int MAV_CMD_DO_LAND_START = 189; // Mission command to perform a landing. This is used as a marker in a mission to tell the autopilot where a sequence of mission items that represents a landing starts. It may also be sent via a COMMAND_LONG to trigger a landing, in which case the nearest (geographically) landing sequence in the mission will be used. The Latitude/Longitude is optional, and may be set to 0/0 if not needed. If specified then it will be used to help find the closest landing sequence.
 	public static final int MAV_CMD_DO_RALLY_LAND = 190; // Mission command to perform a landing from a rally point.
 	public static final int MAV_CMD_DO_GO_AROUND = 191; // Mission command to safely abort an autonmous landing.
 	public static final int MAV_CMD_DO_CONTROL_VIDEO = 200; // Control onboard camera system.
@@ -130,13 +140,22 @@ public class MAVLink {
 	public static final int MAV_CMD_MISSION_START = 300; // start running a mission
 	public static final int MAV_CMD_COMPONENT_ARM_DISARM = 400; // Arms / Disarms a component
 	public static final int MAV_CMD_START_RX_PAIR = 500; // Starts receiver pairing
+	public static final int MAV_CMD_REQUEST_AUTOPILOT_CAPABILITIES = 520; // Request autopilot capabilities
 	public static final int MAV_CMD_IMAGE_START_CAPTURE = 2000; // Start image capture sequence
 	public static final int MAV_CMD_IMAGE_STOP_CAPTURE = 2001; // Stop image capture sequence
+	public static final int MAV_CMD_DO_TRIGGER_CONTROL = 2003; // Enable or disable on-board camera triggering system.
 	public static final int MAV_CMD_VIDEO_START_CAPTURE = 2500; // Starts video capture
 	public static final int MAV_CMD_VIDEO_STOP_CAPTURE = 2501; // Stop the current video capture
 	public static final int MAV_CMD_PANORAMA_CREATE = 2800; // Create a panorama at the current position
 	public static final int MAV_CMD_PAYLOAD_PREPARE_DEPLOY = 30001; // Deploy payload on a Lat / Lon / Alt position. This includes the navigation to reach the required release position and velocity.
 	public static final int MAV_CMD_PAYLOAD_CONTROL_DEPLOY = 30002; // Control the payload deployment.
+ 
+	/*
+	 * Starts a search
+	 */
+	public static final int MAV_CMD_DO_START_SEARCH = 10001; // Starts a search
+	public static final int MAV_CMD_DO_FINISH_SEARCH = 10002; // Starts a search
+	public static final int MAV_CMD_NAV_SWEEP = 10003; // Starts a search
  
 	/*
 	 * ACK / NACK / ERROR values as a result of MAV_CMDs and for mission item transmission.
@@ -180,6 +199,7 @@ public class MAVLink {
 	public static final int MAV_COMP_ID_SERVO12 = 151; // 
 	public static final int MAV_COMP_ID_SERVO13 = 152; // 
 	public static final int MAV_COMP_ID_SERVO14 = 153; // 
+	public static final int MAV_COMP_ID_GIMBAL = 154; // 
  
 	/*
 	 * Data stream IDs. A data stream is not a fixed set of messages, but rather a
@@ -219,10 +239,13 @@ public class MAVLink {
 	public static final int MAV_FRAME_MISSION = 2; // NOT a coordinate frame, indicates a mission command.
 	public static final int MAV_FRAME_GLOBAL_RELATIVE_ALT = 3; // Global coordinate frame, WGS84 coordinate system, relative altitude over ground with respect to the home position. First value / x: latitude, second value / y: longitude, third value / z: positive altitude with 0 being at the altitude of the home location.
 	public static final int MAV_FRAME_LOCAL_ENU = 4; // Local coordinate frame, Z-down (x: east, y: north, z: up)
+	public static final int MAV_FRAME_GLOBAL_INT = 5; // Global coordinate frame, WGS84 coordinate system. First value / x: latitude in degrees*1.0e-7, second value / y: longitude in degrees*1.0e-7, third value / z: positive altitude over mean sea level (MSL)
+	public static final int MAV_FRAME_GLOBAL_RELATIVE_ALT_INT = 6; // Global coordinate frame, WGS84 coordinate system, relative altitude over ground with respect to the home position. First value / x: latitude in degrees*10e-7, second value / y: longitude in degrees*10e-7, third value / z: positive altitude with 0 being at the altitude of the home location.
 	public static final int MAV_FRAME_LOCAL_OFFSET_NED = 7; // Offset to the current local frame. Anything expressed in this frame should be added to the current local frame position.
 	public static final int MAV_FRAME_BODY_NED = 8; // Setpoint in body NED frame. This makes sense if all position control is externalized - e.g. useful to command 2 m/s^2 acceleration to the right.
 	public static final int MAV_FRAME_BODY_OFFSET_NED = 9; // Offset in body NED frame. This makes sense if adding setpoints to the current flight path, to avoid an obstacle - e.g. useful to command 2 m/s^2 acceleration to the east.
 	public static final int MAV_FRAME_GLOBAL_TERRAIN_ALT = 10; // Global coordinate frame with above terrain level altitude. WGS84 coordinate system, relative altitude over terrain with respect to the waypoint coordinate. First value / x: latitude in degrees, second value / y: longitude in degrees, third value / z: positive altitude in meters with 0 being at ground level in terrain model.
+	public static final int MAV_FRAME_GLOBAL_TERRAIN_ALT_INT = 11; // Global coordinate frame with above terrain level altitude. WGS84 coordinate system, relative altitude over terrain with respect to the waypoint coordinate. First value / x: latitude in degrees*10e-7, second value / y: longitude in degrees*10e-7, third value / z: positive altitude in meters with 0 being at ground level in terrain model.
  
 	/*
 	 * Override command, pauses current mission execution and moves immediately to a position
@@ -337,6 +360,7 @@ public class MAVLink {
 	public static final int MAV_PROTOCOL_CAPABILITY_SET_POSITION_TARGET_LOCAL_NED = 128; // Autopilot supports commanding position and velocity targets in local NED frame.
 	public static final int MAV_PROTOCOL_CAPABILITY_SET_POSITION_TARGET_GLOBAL_INT = 256; // Autopilot supports commanding position and velocity targets in global scaled integers.
 	public static final int MAV_PROTOCOL_CAPABILITY_TERRAIN = 512; // Autopilot supports terrain protocol / data handling.
+	public static final int MAV_PROTOCOL_CAPABILITY_SET_ACTUATOR_TARGET = 1024; // Autopilot supports direct actuator control.
  
 	/*
 	 * result from a mavlink command
@@ -431,6 +455,14 @@ public class MAVLink {
 	public static final int MAV_TYPE_FLAPPING_WING = 16; // Flapping wing
 	public static final int MAV_TYPE_KITE = 17; // Flapping wing
 	public static final int MAV_TYPE_ONBOARD_CONTROLLER = 18; // Onboard companion controller
+	public static final int MAV_TYPE_VTOL_DUOROTOR = 19; // Two-rotor VTOL using control surfaces in vertical operation in addition. Tailsitter.
+	public static final int MAV_TYPE_VTOL_QUADROTOR = 20; // Quad-rotor VTOL using a V-shaped quad config in vertical operation. Tailsitter.
+	public static final int MAV_TYPE_VTOL_RESERVED1 = 21; // VTOL reserved 1
+	public static final int MAV_TYPE_VTOL_RESERVED2 = 22; // VTOL reserved 2
+	public static final int MAV_TYPE_VTOL_RESERVED3 = 23; // VTOL reserved 3
+	public static final int MAV_TYPE_VTOL_RESERVED4 = 24; // VTOL reserved 4
+	public static final int MAV_TYPE_VTOL_RESERVED5 = 25; // VTOL reserved 5
+	public static final int MAV_TYPE_GIMBAL = 26; // Onboard gimbal
  
 	/*
 	 * SERIAL_CONTROL device types
@@ -452,13 +484,18 @@ public class MAVLink {
 	/*
 	 * Message IDs
 	 */
+	public static final short MSG_ID_ACTUATOR_CONTROL_TARGET = 140;
 	public static final short MSG_ID_ATTITUDE = 30;
+	public static final short MSG_ID_ATTITUDE_CONTROL = 200;
 	public static final short MSG_ID_ATTITUDE_QUATERNION = 31;
 	public static final short MSG_ID_ATTITUDE_QUATERNION_COV = 61;
 	public static final short MSG_ID_ATTITUDE_TARGET = 83;
+	public static final short MSG_ID_ATT_POS_MOCAP = 138;
 	public static final short MSG_ID_AUTH_KEY = 7;
 	public static final short MSG_ID_AUTOPILOT_VERSION = 148;
 	public static final short MSG_ID_BATTERY_STATUS = 147;
+	public static final short MSG_ID_BRIEF_FEATURE = 195;
+	public static final short MSG_ID_CAMERA_TRIGGER = 112;
 	public static final short MSG_ID_CHANGE_OPERATOR_CONTROL = 5;
 	public static final short MSG_ID_CHANGE_OPERATOR_CONTROL_ACK = 6;
 	public static final short MSG_ID_COMMAND_ACK = 77;
@@ -468,6 +505,7 @@ public class MAVLink {
 	public static final short MSG_ID_DATA_TRANSMISSION_HANDSHAKE = 130;
 	public static final short MSG_ID_DEBUG = 254;
 	public static final short MSG_ID_DEBUG_VECT = 250;
+	public static final short MSG_ID_DETECTION_STATS = 205;
 	public static final short MSG_ID_DISTANCE_SENSOR = 132;
 	public static final short MSG_ID_ENCAPSULATED_DATA = 131;
 	public static final short MSG_ID_FILE_TRANSFER_PROTOCOL = 110;
@@ -490,6 +528,9 @@ public class MAVLink {
 	public static final short MSG_ID_HIL_SENSOR = 107;
 	public static final short MSG_ID_HIL_STATE = 90;
 	public static final short MSG_ID_HIL_STATE_QUATERNION = 115;
+	public static final short MSG_ID_IMAGE_AVAILABLE = 154;
+	public static final short MSG_ID_IMAGE_TRIGGERED = 152;
+	public static final short MSG_ID_IMAGE_TRIGGER_CONTROL = 153;
 	public static final short MSG_ID_LOCAL_POSITION_NED = 32;
 	public static final short MSG_ID_LOCAL_POSITION_NED_COV = 64;
 	public static final short MSG_ID_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET = 89;
@@ -501,6 +542,7 @@ public class MAVLink {
 	public static final short MSG_ID_LOG_REQUEST_LIST = 117;
 	public static final short MSG_ID_MANUAL_CONTROL = 69;
 	public static final short MSG_ID_MANUAL_SETPOINT = 81;
+	public static final short MSG_ID_MARKER = 171;
 	public static final short MSG_ID_MEMORY_VECT = 249;
 	public static final short MSG_ID_MISSION_ACK = 47;
 	public static final short MSG_ID_MISSION_CLEAR_ALL = 45;
@@ -517,17 +559,24 @@ public class MAVLink {
 	public static final short MSG_ID_NAMED_VALUE_FLOAT = 251;
 	public static final short MSG_ID_NAMED_VALUE_INT = 252;
 	public static final short MSG_ID_NAV_CONTROLLER_OUTPUT = 62;
-	public static final short MSG_ID_OMNIDIRECTIONAL_FLOW = 106;
+	public static final short MSG_ID_ONBOARD_HEALTH = 206;
 	public static final short MSG_ID_OPTICAL_FLOW = 100;
+	public static final short MSG_ID_OPTICAL_FLOW_RAD = 106;
+	public static final short MSG_ID_PARAM_MAP_RC = 50;
 	public static final short MSG_ID_PARAM_REQUEST_LIST = 21;
 	public static final short MSG_ID_PARAM_REQUEST_READ = 20;
 	public static final short MSG_ID_PARAM_SET = 23;
 	public static final short MSG_ID_PARAM_VALUE = 22;
+	public static final short MSG_ID_PATTERN_DETECTED = 190;
 	public static final short MSG_ID_PING = 4;
+	public static final short MSG_ID_POINT_OF_INTEREST = 191;
+	public static final short MSG_ID_POINT_OF_INTEREST_CONNECTION = 192;
+	public static final short MSG_ID_POSITION_CONTROL_SETPOINT = 170;
 	public static final short MSG_ID_POSITION_TARGET_GLOBAL_INT = 87;
 	public static final short MSG_ID_POSITION_TARGET_LOCAL_NED = 85;
 	public static final short MSG_ID_POWER_STATUS = 125;
 	public static final short MSG_ID_RADIO_STATUS = 109;
+	public static final short MSG_ID_RAW_AUX = 172;
 	public static final short MSG_ID_RAW_IMU = 27;
 	public static final short MSG_ID_RAW_PRESSURE = 28;
 	public static final short MSG_ID_RC_CHANNELS = 65;
@@ -539,12 +588,17 @@ public class MAVLink {
 	public static final short MSG_ID_SAFETY_SET_ALLOWED_AREA = 54;
 	public static final short MSG_ID_SCALED_IMU = 26;
 	public static final short MSG_ID_SCALED_IMU2 = 116;
+	public static final short MSG_ID_SCALED_IMU3 = 129;
 	public static final short MSG_ID_SCALED_PRESSURE = 29;
+	public static final short MSG_ID_SCALED_PRESSURE2 = 137;
 	public static final short MSG_ID_SERIAL_CONTROL = 126;
 	public static final short MSG_ID_SERVO_OUTPUT_RAW = 36;
+	public static final short MSG_ID_SET_ACTUATOR_CONTROL_TARGET = 139;
 	public static final short MSG_ID_SET_ATTITUDE_TARGET = 82;
+	public static final short MSG_ID_SET_CAM_SHUTTER = 151;
 	public static final short MSG_ID_SET_GPS_GLOBAL_ORIGIN = 48;
 	public static final short MSG_ID_SET_MODE = 11;
+	public static final short MSG_ID_SET_POSITION_CONTROL_OFFSET = 160;
 	public static final short MSG_ID_SET_POSITION_TARGET_GLOBAL_INT = 86;
 	public static final short MSG_ID_SET_POSITION_TARGET_LOCAL_NED = 84;
 	public static final short MSG_ID_SIM_STATE = 108;
@@ -555,11 +609,16 @@ public class MAVLink {
 	public static final short MSG_ID_TERRAIN_DATA = 134;
 	public static final short MSG_ID_TERRAIN_REPORT = 136;
 	public static final short MSG_ID_TERRAIN_REQUEST = 133;
+	public static final short MSG_ID_TIMESYNC = 111;
 	public static final short MSG_ID_V2_EXTENSION = 248;
 	public static final short MSG_ID_VFR_HUD = 74;
 	public static final short MSG_ID_VICON_POSITION_ESTIMATE = 104;
 	public static final short MSG_ID_VISION_POSITION_ESTIMATE = 102;
 	public static final short MSG_ID_VISION_SPEED_ESTIMATE = 103;
+	public static final short MSG_ID_WATCHDOG_COMMAND = 183;
+	public static final short MSG_ID_WATCHDOG_HEARTBEAT = 180;
+	public static final short MSG_ID_WATCHDOG_PROCESS_INFO = 181;
+	public static final short MSG_ID_WATCHDOG_PROCESS_STATUS = 182;
 
 	public static abstract class Message {
 		
@@ -573,143 +632,290 @@ public class MAVLink {
 			short messageId = (short)(bytes[5] & 0xFF);
 		
 			switch(messageId) {
-					case MSG_ID_ATTITUDE: return new MSG_ATTITUDE (bytes);
-					case MSG_ID_ATTITUDE_QUATERNION: return new MSG_ATTITUDE_QUATERNION (bytes);
-					case MSG_ID_ATTITUDE_QUATERNION_COV: return new MSG_ATTITUDE_QUATERNION_COV (bytes);
-					case MSG_ID_ATTITUDE_TARGET: return new MSG_ATTITUDE_TARGET (bytes);
-					case MSG_ID_AUTH_KEY: return new MSG_AUTH_KEY (bytes);
-					case MSG_ID_AUTOPILOT_VERSION: return new MSG_AUTOPILOT_VERSION (bytes);
-					case MSG_ID_BATTERY_STATUS: return new MSG_BATTERY_STATUS (bytes);
-					case MSG_ID_CHANGE_OPERATOR_CONTROL: return new MSG_CHANGE_OPERATOR_CONTROL (bytes);
-					case MSG_ID_CHANGE_OPERATOR_CONTROL_ACK: return new MSG_CHANGE_OPERATOR_CONTROL_ACK (bytes);
-					case MSG_ID_COMMAND_ACK: return new MSG_COMMAND_ACK (bytes);
-					case MSG_ID_COMMAND_INT: return new MSG_COMMAND_INT (bytes);
-					case MSG_ID_COMMAND_LONG: return new MSG_COMMAND_LONG (bytes);
-					case MSG_ID_DATA_STREAM: return new MSG_DATA_STREAM (bytes);
-					case MSG_ID_DATA_TRANSMISSION_HANDSHAKE: return new MSG_DATA_TRANSMISSION_HANDSHAKE (bytes);
-					case MSG_ID_DEBUG: return new MSG_DEBUG (bytes);
-					case MSG_ID_DEBUG_VECT: return new MSG_DEBUG_VECT (bytes);
-					case MSG_ID_DISTANCE_SENSOR: return new MSG_DISTANCE_SENSOR (bytes);
-					case MSG_ID_ENCAPSULATED_DATA: return new MSG_ENCAPSULATED_DATA (bytes);
-					case MSG_ID_FILE_TRANSFER_PROTOCOL: return new MSG_FILE_TRANSFER_PROTOCOL (bytes);
-					case MSG_ID_GLOBAL_POSITION_INT: return new MSG_GLOBAL_POSITION_INT (bytes);
-					case MSG_ID_GLOBAL_POSITION_INT_COV: return new MSG_GLOBAL_POSITION_INT_COV (bytes);
-					case MSG_ID_GLOBAL_VISION_POSITION_ESTIMATE: return new MSG_GLOBAL_VISION_POSITION_ESTIMATE (bytes);
-					case MSG_ID_GPS2_RAW: return new MSG_GPS2_RAW (bytes);
-					case MSG_ID_GPS2_RTK: return new MSG_GPS2_RTK (bytes);
-					case MSG_ID_GPS_GLOBAL_ORIGIN: return new MSG_GPS_GLOBAL_ORIGIN (bytes);
-					case MSG_ID_GPS_INJECT_DATA: return new MSG_GPS_INJECT_DATA (bytes);
-					case MSG_ID_GPS_RAW_INT: return new MSG_GPS_RAW_INT (bytes);
-					case MSG_ID_GPS_RTK: return new MSG_GPS_RTK (bytes);
-					case MSG_ID_GPS_STATUS: return new MSG_GPS_STATUS (bytes);
-					case MSG_ID_HEARTBEAT: return new MSG_HEARTBEAT (bytes);
-					case MSG_ID_HIGHRES_IMU: return new MSG_HIGHRES_IMU (bytes);
-					case MSG_ID_HIL_CONTROLS: return new MSG_HIL_CONTROLS (bytes);
-					case MSG_ID_HIL_GPS: return new MSG_HIL_GPS (bytes);
-					case MSG_ID_HIL_OPTICAL_FLOW: return new MSG_HIL_OPTICAL_FLOW (bytes);
-					case MSG_ID_HIL_RC_INPUTS_RAW: return new MSG_HIL_RC_INPUTS_RAW (bytes);
-					case MSG_ID_HIL_SENSOR: return new MSG_HIL_SENSOR (bytes);
-					case MSG_ID_HIL_STATE: return new MSG_HIL_STATE (bytes);
-					case MSG_ID_HIL_STATE_QUATERNION: return new MSG_HIL_STATE_QUATERNION (bytes);
-					case MSG_ID_LOCAL_POSITION_NED: return new MSG_LOCAL_POSITION_NED (bytes);
-					case MSG_ID_LOCAL_POSITION_NED_COV: return new MSG_LOCAL_POSITION_NED_COV (bytes);
-					case MSG_ID_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET: return new MSG_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET (bytes);
-					case MSG_ID_LOG_DATA: return new MSG_LOG_DATA (bytes);
-					case MSG_ID_LOG_ENTRY: return new MSG_LOG_ENTRY (bytes);
-					case MSG_ID_LOG_ERASE: return new MSG_LOG_ERASE (bytes);
-					case MSG_ID_LOG_REQUEST_DATA: return new MSG_LOG_REQUEST_DATA (bytes);
-					case MSG_ID_LOG_REQUEST_END: return new MSG_LOG_REQUEST_END (bytes);
-					case MSG_ID_LOG_REQUEST_LIST: return new MSG_LOG_REQUEST_LIST (bytes);
-					case MSG_ID_MANUAL_CONTROL: return new MSG_MANUAL_CONTROL (bytes);
-					case MSG_ID_MANUAL_SETPOINT: return new MSG_MANUAL_SETPOINT (bytes);
-					case MSG_ID_MEMORY_VECT: return new MSG_MEMORY_VECT (bytes);
-					case MSG_ID_MISSION_ACK: return new MSG_MISSION_ACK (bytes);
-					case MSG_ID_MISSION_CLEAR_ALL: return new MSG_MISSION_CLEAR_ALL (bytes);
-					case MSG_ID_MISSION_COUNT: return new MSG_MISSION_COUNT (bytes);
-					case MSG_ID_MISSION_CURRENT: return new MSG_MISSION_CURRENT (bytes);
-					case MSG_ID_MISSION_ITEM: return new MSG_MISSION_ITEM (bytes);
-					case MSG_ID_MISSION_ITEM_INT: return new MSG_MISSION_ITEM_INT (bytes);
-					case MSG_ID_MISSION_ITEM_REACHED: return new MSG_MISSION_ITEM_REACHED (bytes);
-					case MSG_ID_MISSION_REQUEST: return new MSG_MISSION_REQUEST (bytes);
-					case MSG_ID_MISSION_REQUEST_LIST: return new MSG_MISSION_REQUEST_LIST (bytes);
-					case MSG_ID_MISSION_REQUEST_PARTIAL_LIST: return new MSG_MISSION_REQUEST_PARTIAL_LIST (bytes);
-					case MSG_ID_MISSION_SET_CURRENT: return new MSG_MISSION_SET_CURRENT (bytes);
-					case MSG_ID_MISSION_WRITE_PARTIAL_LIST: return new MSG_MISSION_WRITE_PARTIAL_LIST (bytes);
-					case MSG_ID_NAMED_VALUE_FLOAT: return new MSG_NAMED_VALUE_FLOAT (bytes);
-					case MSG_ID_NAMED_VALUE_INT: return new MSG_NAMED_VALUE_INT (bytes);
-					case MSG_ID_NAV_CONTROLLER_OUTPUT: return new MSG_NAV_CONTROLLER_OUTPUT (bytes);
-					case MSG_ID_OMNIDIRECTIONAL_FLOW: return new MSG_OMNIDIRECTIONAL_FLOW (bytes);
-					case MSG_ID_OPTICAL_FLOW: return new MSG_OPTICAL_FLOW (bytes);
-					case MSG_ID_PARAM_REQUEST_LIST: return new MSG_PARAM_REQUEST_LIST (bytes);
-					case MSG_ID_PARAM_REQUEST_READ: return new MSG_PARAM_REQUEST_READ (bytes);
-					case MSG_ID_PARAM_SET: return new MSG_PARAM_SET (bytes);
-					case MSG_ID_PARAM_VALUE: return new MSG_PARAM_VALUE (bytes);
-					case MSG_ID_PING: return new MSG_PING (bytes);
-					case MSG_ID_POSITION_TARGET_GLOBAL_INT: return new MSG_POSITION_TARGET_GLOBAL_INT (bytes);
-					case MSG_ID_POSITION_TARGET_LOCAL_NED: return new MSG_POSITION_TARGET_LOCAL_NED (bytes);
-					case MSG_ID_POWER_STATUS: return new MSG_POWER_STATUS (bytes);
-					case MSG_ID_RADIO_STATUS: return new MSG_RADIO_STATUS (bytes);
-					case MSG_ID_RAW_IMU: return new MSG_RAW_IMU (bytes);
-					case MSG_ID_RAW_PRESSURE: return new MSG_RAW_PRESSURE (bytes);
-					case MSG_ID_RC_CHANNELS: return new MSG_RC_CHANNELS (bytes);
-					case MSG_ID_RC_CHANNELS_OVERRIDE: return new MSG_RC_CHANNELS_OVERRIDE (bytes);
-					case MSG_ID_RC_CHANNELS_RAW: return new MSG_RC_CHANNELS_RAW (bytes);
-					case MSG_ID_RC_CHANNELS_SCALED: return new MSG_RC_CHANNELS_SCALED (bytes);
-					case MSG_ID_REQUEST_DATA_STREAM: return new MSG_REQUEST_DATA_STREAM (bytes);
-					case MSG_ID_SAFETY_ALLOWED_AREA: return new MSG_SAFETY_ALLOWED_AREA (bytes);
-					case MSG_ID_SAFETY_SET_ALLOWED_AREA: return new MSG_SAFETY_SET_ALLOWED_AREA (bytes);
-					case MSG_ID_SCALED_IMU: return new MSG_SCALED_IMU (bytes);
-					case MSG_ID_SCALED_IMU2: return new MSG_SCALED_IMU2 (bytes);
-					case MSG_ID_SCALED_PRESSURE: return new MSG_SCALED_PRESSURE (bytes);
-					case MSG_ID_SERIAL_CONTROL: return new MSG_SERIAL_CONTROL (bytes);
-					case MSG_ID_SERVO_OUTPUT_RAW: return new MSG_SERVO_OUTPUT_RAW (bytes);
-					case MSG_ID_SET_ATTITUDE_TARGET: return new MSG_SET_ATTITUDE_TARGET (bytes);
-					case MSG_ID_SET_GPS_GLOBAL_ORIGIN: return new MSG_SET_GPS_GLOBAL_ORIGIN (bytes);
-					case MSG_ID_SET_MODE: return new MSG_SET_MODE (bytes);
-					case MSG_ID_SET_POSITION_TARGET_GLOBAL_INT: return new MSG_SET_POSITION_TARGET_GLOBAL_INT (bytes);
-					case MSG_ID_SET_POSITION_TARGET_LOCAL_NED: return new MSG_SET_POSITION_TARGET_LOCAL_NED (bytes);
-					case MSG_ID_SIM_STATE: return new MSG_SIM_STATE (bytes);
-					case MSG_ID_STATUSTEXT: return new MSG_STATUSTEXT (bytes);
-					case MSG_ID_SYSTEM_TIME: return new MSG_SYSTEM_TIME (bytes);
-					case MSG_ID_SYS_STATUS: return new MSG_SYS_STATUS (bytes);
-					case MSG_ID_TERRAIN_CHECK: return new MSG_TERRAIN_CHECK (bytes);
-					case MSG_ID_TERRAIN_DATA: return new MSG_TERRAIN_DATA (bytes);
-					case MSG_ID_TERRAIN_REPORT: return new MSG_TERRAIN_REPORT (bytes);
-					case MSG_ID_TERRAIN_REQUEST: return new MSG_TERRAIN_REQUEST (bytes);
-					case MSG_ID_V2_EXTENSION: return new MSG_V2_EXTENSION (bytes);
-					case MSG_ID_VFR_HUD: return new MSG_VFR_HUD (bytes);
-					case MSG_ID_VICON_POSITION_ESTIMATE: return new MSG_VICON_POSITION_ESTIMATE (bytes);
-					case MSG_ID_VISION_POSITION_ESTIMATE: return new MSG_VISION_POSITION_ESTIMATE (bytes);
-					case MSG_ID_VISION_SPEED_ESTIMATE: return new MSG_VISION_SPEED_ESTIMATE (bytes);
+					case MSG_ID_ACTUATOR_CONTROL_TARGET: 
+						return new MSG_ACTUATOR_CONTROL_TARGET ().decode(bytes);
+					case MSG_ID_ATTITUDE: 
+						return new MSG_ATTITUDE ().decode(bytes);
+					case MSG_ID_ATTITUDE_CONTROL: 
+						return new MSG_ATTITUDE_CONTROL ().decode(bytes);
+					case MSG_ID_ATTITUDE_QUATERNION: 
+						return new MSG_ATTITUDE_QUATERNION ().decode(bytes);
+					case MSG_ID_ATTITUDE_QUATERNION_COV: 
+						return new MSG_ATTITUDE_QUATERNION_COV ().decode(bytes);
+					case MSG_ID_ATTITUDE_TARGET: 
+						return new MSG_ATTITUDE_TARGET ().decode(bytes);
+					case MSG_ID_ATT_POS_MOCAP: 
+						return new MSG_ATT_POS_MOCAP ().decode(bytes);
+					case MSG_ID_AUTH_KEY: 
+						return new MSG_AUTH_KEY ().decode(bytes);
+					case MSG_ID_AUTOPILOT_VERSION: 
+						return new MSG_AUTOPILOT_VERSION ().decode(bytes);
+					case MSG_ID_BATTERY_STATUS: 
+						return new MSG_BATTERY_STATUS ().decode(bytes);
+					case MSG_ID_BRIEF_FEATURE: 
+						return new MSG_BRIEF_FEATURE ().decode(bytes);
+					case MSG_ID_CAMERA_TRIGGER: 
+						return new MSG_CAMERA_TRIGGER ().decode(bytes);
+					case MSG_ID_CHANGE_OPERATOR_CONTROL: 
+						return new MSG_CHANGE_OPERATOR_CONTROL ().decode(bytes);
+					case MSG_ID_CHANGE_OPERATOR_CONTROL_ACK: 
+						return new MSG_CHANGE_OPERATOR_CONTROL_ACK ().decode(bytes);
+					case MSG_ID_COMMAND_ACK: 
+						return new MSG_COMMAND_ACK ().decode(bytes);
+					case MSG_ID_COMMAND_INT: 
+						return new MSG_COMMAND_INT ().decode(bytes);
+					case MSG_ID_COMMAND_LONG: 
+						return new MSG_COMMAND_LONG ().decode(bytes);
+					case MSG_ID_DATA_STREAM: 
+						return new MSG_DATA_STREAM ().decode(bytes);
+					case MSG_ID_DATA_TRANSMISSION_HANDSHAKE: 
+						return new MSG_DATA_TRANSMISSION_HANDSHAKE ().decode(bytes);
+					case MSG_ID_DEBUG: 
+						return new MSG_DEBUG ().decode(bytes);
+					case MSG_ID_DEBUG_VECT: 
+						return new MSG_DEBUG_VECT ().decode(bytes);
+					case MSG_ID_DETECTION_STATS: 
+						return new MSG_DETECTION_STATS ().decode(bytes);
+					case MSG_ID_DISTANCE_SENSOR: 
+						return new MSG_DISTANCE_SENSOR ().decode(bytes);
+					case MSG_ID_ENCAPSULATED_DATA: 
+						return new MSG_ENCAPSULATED_DATA ().decode(bytes);
+					case MSG_ID_FILE_TRANSFER_PROTOCOL: 
+						return new MSG_FILE_TRANSFER_PROTOCOL ().decode(bytes);
+					case MSG_ID_GLOBAL_POSITION_INT: 
+						return new MSG_GLOBAL_POSITION_INT ().decode(bytes);
+					case MSG_ID_GLOBAL_POSITION_INT_COV: 
+						return new MSG_GLOBAL_POSITION_INT_COV ().decode(bytes);
+					case MSG_ID_GLOBAL_VISION_POSITION_ESTIMATE: 
+						return new MSG_GLOBAL_VISION_POSITION_ESTIMATE ().decode(bytes);
+					case MSG_ID_GPS2_RAW: 
+						return new MSG_GPS2_RAW ().decode(bytes);
+					case MSG_ID_GPS2_RTK: 
+						return new MSG_GPS2_RTK ().decode(bytes);
+					case MSG_ID_GPS_GLOBAL_ORIGIN: 
+						return new MSG_GPS_GLOBAL_ORIGIN ().decode(bytes);
+					case MSG_ID_GPS_INJECT_DATA: 
+						return new MSG_GPS_INJECT_DATA ().decode(bytes);
+					case MSG_ID_GPS_RAW_INT: 
+						return new MSG_GPS_RAW_INT ().decode(bytes);
+					case MSG_ID_GPS_RTK: 
+						return new MSG_GPS_RTK ().decode(bytes);
+					case MSG_ID_GPS_STATUS: 
+						return new MSG_GPS_STATUS ().decode(bytes);
+					case MSG_ID_HEARTBEAT: 
+						return new MSG_HEARTBEAT ().decode(bytes);
+					case MSG_ID_HIGHRES_IMU: 
+						return new MSG_HIGHRES_IMU ().decode(bytes);
+					case MSG_ID_HIL_CONTROLS: 
+						return new MSG_HIL_CONTROLS ().decode(bytes);
+					case MSG_ID_HIL_GPS: 
+						return new MSG_HIL_GPS ().decode(bytes);
+					case MSG_ID_HIL_OPTICAL_FLOW: 
+						return new MSG_HIL_OPTICAL_FLOW ().decode(bytes);
+					case MSG_ID_HIL_RC_INPUTS_RAW: 
+						return new MSG_HIL_RC_INPUTS_RAW ().decode(bytes);
+					case MSG_ID_HIL_SENSOR: 
+						return new MSG_HIL_SENSOR ().decode(bytes);
+					case MSG_ID_HIL_STATE: 
+						return new MSG_HIL_STATE ().decode(bytes);
+					case MSG_ID_HIL_STATE_QUATERNION: 
+						return new MSG_HIL_STATE_QUATERNION ().decode(bytes);
+					case MSG_ID_IMAGE_AVAILABLE: 
+						return new MSG_IMAGE_AVAILABLE ().decode(bytes);
+					case MSG_ID_IMAGE_TRIGGERED: 
+						return new MSG_IMAGE_TRIGGERED ().decode(bytes);
+					case MSG_ID_IMAGE_TRIGGER_CONTROL: 
+						return new MSG_IMAGE_TRIGGER_CONTROL ().decode(bytes);
+					case MSG_ID_LOCAL_POSITION_NED: 
+						return new MSG_LOCAL_POSITION_NED ().decode(bytes);
+					case MSG_ID_LOCAL_POSITION_NED_COV: 
+						return new MSG_LOCAL_POSITION_NED_COV ().decode(bytes);
+					case MSG_ID_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET: 
+						return new MSG_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET ().decode(bytes);
+					case MSG_ID_LOG_DATA: 
+						return new MSG_LOG_DATA ().decode(bytes);
+					case MSG_ID_LOG_ENTRY: 
+						return new MSG_LOG_ENTRY ().decode(bytes);
+					case MSG_ID_LOG_ERASE: 
+						return new MSG_LOG_ERASE ().decode(bytes);
+					case MSG_ID_LOG_REQUEST_DATA: 
+						return new MSG_LOG_REQUEST_DATA ().decode(bytes);
+					case MSG_ID_LOG_REQUEST_END: 
+						return new MSG_LOG_REQUEST_END ().decode(bytes);
+					case MSG_ID_LOG_REQUEST_LIST: 
+						return new MSG_LOG_REQUEST_LIST ().decode(bytes);
+					case MSG_ID_MANUAL_CONTROL: 
+						return new MSG_MANUAL_CONTROL ().decode(bytes);
+					case MSG_ID_MANUAL_SETPOINT: 
+						return new MSG_MANUAL_SETPOINT ().decode(bytes);
+					case MSG_ID_MARKER: 
+						return new MSG_MARKER ().decode(bytes);
+					case MSG_ID_MEMORY_VECT: 
+						return new MSG_MEMORY_VECT ().decode(bytes);
+					case MSG_ID_MISSION_ACK: 
+						return new MSG_MISSION_ACK ().decode(bytes);
+					case MSG_ID_MISSION_CLEAR_ALL: 
+						return new MSG_MISSION_CLEAR_ALL ().decode(bytes);
+					case MSG_ID_MISSION_COUNT: 
+						return new MSG_MISSION_COUNT ().decode(bytes);
+					case MSG_ID_MISSION_CURRENT: 
+						return new MSG_MISSION_CURRENT ().decode(bytes);
+					case MSG_ID_MISSION_ITEM: 
+						return new MSG_MISSION_ITEM ().decode(bytes);
+					case MSG_ID_MISSION_ITEM_INT: 
+						return new MSG_MISSION_ITEM_INT ().decode(bytes);
+					case MSG_ID_MISSION_ITEM_REACHED: 
+						return new MSG_MISSION_ITEM_REACHED ().decode(bytes);
+					case MSG_ID_MISSION_REQUEST: 
+						return new MSG_MISSION_REQUEST ().decode(bytes);
+					case MSG_ID_MISSION_REQUEST_LIST: 
+						return new MSG_MISSION_REQUEST_LIST ().decode(bytes);
+					case MSG_ID_MISSION_REQUEST_PARTIAL_LIST: 
+						return new MSG_MISSION_REQUEST_PARTIAL_LIST ().decode(bytes);
+					case MSG_ID_MISSION_SET_CURRENT: 
+						return new MSG_MISSION_SET_CURRENT ().decode(bytes);
+					case MSG_ID_MISSION_WRITE_PARTIAL_LIST: 
+						return new MSG_MISSION_WRITE_PARTIAL_LIST ().decode(bytes);
+					case MSG_ID_NAMED_VALUE_FLOAT: 
+						return new MSG_NAMED_VALUE_FLOAT ().decode(bytes);
+					case MSG_ID_NAMED_VALUE_INT: 
+						return new MSG_NAMED_VALUE_INT ().decode(bytes);
+					case MSG_ID_NAV_CONTROLLER_OUTPUT: 
+						return new MSG_NAV_CONTROLLER_OUTPUT ().decode(bytes);
+					case MSG_ID_ONBOARD_HEALTH: 
+						return new MSG_ONBOARD_HEALTH ().decode(bytes);
+					case MSG_ID_OPTICAL_FLOW: 
+						return new MSG_OPTICAL_FLOW ().decode(bytes);
+					case MSG_ID_OPTICAL_FLOW_RAD: 
+						return new MSG_OPTICAL_FLOW_RAD ().decode(bytes);
+					case MSG_ID_PARAM_MAP_RC: 
+						return new MSG_PARAM_MAP_RC ().decode(bytes);
+					case MSG_ID_PARAM_REQUEST_LIST: 
+						return new MSG_PARAM_REQUEST_LIST ().decode(bytes);
+					case MSG_ID_PARAM_REQUEST_READ: 
+						return new MSG_PARAM_REQUEST_READ ().decode(bytes);
+					case MSG_ID_PARAM_SET: 
+						return new MSG_PARAM_SET ().decode(bytes);
+					case MSG_ID_PARAM_VALUE: 
+						return new MSG_PARAM_VALUE ().decode(bytes);
+					case MSG_ID_PATTERN_DETECTED: 
+						return new MSG_PATTERN_DETECTED ().decode(bytes);
+					case MSG_ID_PING: 
+						return new MSG_PING ().decode(bytes);
+					case MSG_ID_POINT_OF_INTEREST: 
+						return new MSG_POINT_OF_INTEREST ().decode(bytes);
+					case MSG_ID_POINT_OF_INTEREST_CONNECTION: 
+						return new MSG_POINT_OF_INTEREST_CONNECTION ().decode(bytes);
+					case MSG_ID_POSITION_CONTROL_SETPOINT: 
+						return new MSG_POSITION_CONTROL_SETPOINT ().decode(bytes);
+					case MSG_ID_POSITION_TARGET_GLOBAL_INT: 
+						return new MSG_POSITION_TARGET_GLOBAL_INT ().decode(bytes);
+					case MSG_ID_POSITION_TARGET_LOCAL_NED: 
+						return new MSG_POSITION_TARGET_LOCAL_NED ().decode(bytes);
+					case MSG_ID_POWER_STATUS: 
+						return new MSG_POWER_STATUS ().decode(bytes);
+					case MSG_ID_RADIO_STATUS: 
+						return new MSG_RADIO_STATUS ().decode(bytes);
+					case MSG_ID_RAW_AUX: 
+						return new MSG_RAW_AUX ().decode(bytes);
+					case MSG_ID_RAW_IMU: 
+						return new MSG_RAW_IMU ().decode(bytes);
+					case MSG_ID_RAW_PRESSURE: 
+						return new MSG_RAW_PRESSURE ().decode(bytes);
+					case MSG_ID_RC_CHANNELS: 
+						return new MSG_RC_CHANNELS ().decode(bytes);
+					case MSG_ID_RC_CHANNELS_OVERRIDE: 
+						return new MSG_RC_CHANNELS_OVERRIDE ().decode(bytes);
+					case MSG_ID_RC_CHANNELS_RAW: 
+						return new MSG_RC_CHANNELS_RAW ().decode(bytes);
+					case MSG_ID_RC_CHANNELS_SCALED: 
+						return new MSG_RC_CHANNELS_SCALED ().decode(bytes);
+					case MSG_ID_REQUEST_DATA_STREAM: 
+						return new MSG_REQUEST_DATA_STREAM ().decode(bytes);
+					case MSG_ID_SAFETY_ALLOWED_AREA: 
+						return new MSG_SAFETY_ALLOWED_AREA ().decode(bytes);
+					case MSG_ID_SAFETY_SET_ALLOWED_AREA: 
+						return new MSG_SAFETY_SET_ALLOWED_AREA ().decode(bytes);
+					case MSG_ID_SCALED_IMU: 
+						return new MSG_SCALED_IMU ().decode(bytes);
+					case MSG_ID_SCALED_IMU2: 
+						return new MSG_SCALED_IMU2 ().decode(bytes);
+					case MSG_ID_SCALED_IMU3: 
+						return new MSG_SCALED_IMU3 ().decode(bytes);
+					case MSG_ID_SCALED_PRESSURE: 
+						return new MSG_SCALED_PRESSURE ().decode(bytes);
+					case MSG_ID_SCALED_PRESSURE2: 
+						return new MSG_SCALED_PRESSURE2 ().decode(bytes);
+					case MSG_ID_SERIAL_CONTROL: 
+						return new MSG_SERIAL_CONTROL ().decode(bytes);
+					case MSG_ID_SERVO_OUTPUT_RAW: 
+						return new MSG_SERVO_OUTPUT_RAW ().decode(bytes);
+					case MSG_ID_SET_ACTUATOR_CONTROL_TARGET: 
+						return new MSG_SET_ACTUATOR_CONTROL_TARGET ().decode(bytes);
+					case MSG_ID_SET_ATTITUDE_TARGET: 
+						return new MSG_SET_ATTITUDE_TARGET ().decode(bytes);
+					case MSG_ID_SET_CAM_SHUTTER: 
+						return new MSG_SET_CAM_SHUTTER ().decode(bytes);
+					case MSG_ID_SET_GPS_GLOBAL_ORIGIN: 
+						return new MSG_SET_GPS_GLOBAL_ORIGIN ().decode(bytes);
+					case MSG_ID_SET_MODE: 
+						return new MSG_SET_MODE ().decode(bytes);
+					case MSG_ID_SET_POSITION_CONTROL_OFFSET: 
+						return new MSG_SET_POSITION_CONTROL_OFFSET ().decode(bytes);
+					case MSG_ID_SET_POSITION_TARGET_GLOBAL_INT: 
+						return new MSG_SET_POSITION_TARGET_GLOBAL_INT ().decode(bytes);
+					case MSG_ID_SET_POSITION_TARGET_LOCAL_NED: 
+						return new MSG_SET_POSITION_TARGET_LOCAL_NED ().decode(bytes);
+					case MSG_ID_SIM_STATE: 
+						return new MSG_SIM_STATE ().decode(bytes);
+					case MSG_ID_STATUSTEXT: 
+						return new MSG_STATUSTEXT ().decode(bytes);
+					case MSG_ID_SYSTEM_TIME: 
+						return new MSG_SYSTEM_TIME ().decode(bytes);
+					case MSG_ID_SYS_STATUS: 
+						return new MSG_SYS_STATUS ().decode(bytes);
+					case MSG_ID_TERRAIN_CHECK: 
+						return new MSG_TERRAIN_CHECK ().decode(bytes);
+					case MSG_ID_TERRAIN_DATA: 
+						return new MSG_TERRAIN_DATA ().decode(bytes);
+					case MSG_ID_TERRAIN_REPORT: 
+						return new MSG_TERRAIN_REPORT ().decode(bytes);
+					case MSG_ID_TERRAIN_REQUEST: 
+						return new MSG_TERRAIN_REQUEST ().decode(bytes);
+					case MSG_ID_TIMESYNC: 
+						return new MSG_TIMESYNC ().decode(bytes);
+					case MSG_ID_V2_EXTENSION: 
+						return new MSG_V2_EXTENSION ().decode(bytes);
+					case MSG_ID_VFR_HUD: 
+						return new MSG_VFR_HUD ().decode(bytes);
+					case MSG_ID_VICON_POSITION_ESTIMATE: 
+						return new MSG_VICON_POSITION_ESTIMATE ().decode(bytes);
+					case MSG_ID_VISION_POSITION_ESTIMATE: 
+						return new MSG_VISION_POSITION_ESTIMATE ().decode(bytes);
+					case MSG_ID_VISION_SPEED_ESTIMATE: 
+						return new MSG_VISION_SPEED_ESTIMATE ().decode(bytes);
+					case MSG_ID_WATCHDOG_COMMAND: 
+						return new MSG_WATCHDOG_COMMAND ().decode(bytes);
+					case MSG_ID_WATCHDOG_HEARTBEAT: 
+						return new MSG_WATCHDOG_HEARTBEAT ().decode(bytes);
+					case MSG_ID_WATCHDOG_PROCESS_INFO: 
+						return new MSG_WATCHDOG_PROCESS_INFO ().decode(bytes);
+					case MSG_ID_WATCHDOG_PROCESS_STATUS: 
+						return new MSG_WATCHDOG_PROCESS_STATUS ().decode(bytes);
 					default: throw new IllegalArgumentException("Message with id=" + messageId + " is not supported.");
 			}
 		}
 	
+		protected Message(String messageName, short messageId)
+		{
+			this.messageName = messageName;
+			this.messageId = messageId;			
+		}
+		
 		protected Message(byte[] bytes, String messageName, short messageId) {
 			this.messageName = messageName;
 			this.messageId = messageId;
-			ByteBuffer buffer = ByteBuffer.wrap(bytes);
-			buffer.order(ByteOrder.LITTLE_ENDIAN);
-			short startSign = (short)(buffer.get() & 0xFF);
-			
-			if(startSign != PACKET_START_SIGN) {
-				throw new IllegalStateException("Unsupported protocol. Excepted: " + 
-					PACKET_START_SIGN + " got: " + startSign);
-			}
-			
-			buffer.get(); // payload length, ignore
-			this.sequenceIndex = (short)(buffer.get() & 0xFF);
-			this.systemId = (short)(buffer.get() & 0xFF);
-			this.componentId = (short)(buffer.get() & 0xFF);
-			
-			// short messageId = (short)(buffer.get() & 0xFF);
-			// if(messageId != getMessageId()) {
-			//	throw new IllegalArgumentException("Invalid message id. Expected: " + 
-			//		getMessageId() + " got: " + messageId);
-			// }
-			
-			decodePayload(buffer);
-			// TODO: CRC
+			decode(bytes);
 		}
 		
 		protected Message(short systemId, short componentId) {
@@ -731,6 +937,34 @@ public class MAVLink {
 		
 		protected abstract ByteBuffer decodePayload(ByteBuffer buffer);
 		
+		protected Message decode(byte[] bytes)
+		{
+			ByteBuffer buffer = ByteBuffer.wrap(bytes);
+			buffer.order(ByteOrder.LITTLE_ENDIAN);
+			short startSign = (short)(buffer.get() & 0xFF);
+			
+			if(startSign != PACKET_START_SIGN) {
+				throw new IllegalStateException("Unsupported protocol. Excepted: " + 
+					PACKET_START_SIGN + " got: " + startSign);
+			}
+			
+			buffer.get(); // payload length, ignore
+			this.sequenceIndex = (short)(buffer.get() & 0xFF);
+			this.systemId = (short)(buffer.get() & 0xFF);
+			this.componentId = (short)(buffer.get() & 0xFF);
+			
+			short tmp = (short)(buffer.get() & 0xFF); // messageID not used
+			if(tmp != getMessageId()) {
+				throw new IllegalArgumentException("Invalid message id. Expected: " + 
+					getMessageId() + " got: " + messageId);
+			 }
+			
+			decodePayload(buffer);
+			// TODO: CRC		
+			
+			return this;	
+		}
+
 		protected abstract ByteBuffer encodePayload(ByteBuffer buffer);
 		
 		public byte[] encode() {
@@ -817,6 +1051,95 @@ public class MAVLink {
 	}
 	
 	/*
+	 * Set the vehicle attitude and body angular rates.
+	 */
+	public static class MSG_ACTUATOR_CONTROL_TARGET extends Message {
+	
+		private long time_usec; // Timestamp (micros since boot or Unix epoch)
+		private float[] controls = new float[8]; // Actuator controls. Normed to -1..+1 where 0 is neutral position. Throttle for single rotation direction motors is 0..1, negative range for reverse direction. Standard mapping for attitude controls (group 0): (index 0-7): roll, pitch, yaw, throttle, flaps, spoilers, airbrakes, landing gear. Load a pass-through mixer to repurpose them as generic outputs.
+		private int group_mlx; // Actuator group. The "_mlx" indicates this is a multi-instance message and a MAVLink parser should use this field to difference between instances.
+	
+		public MSG_ACTUATOR_CONTROL_TARGET () {
+			super("ACTUATOR_CONTROL_TARGET", MSG_ID_ACTUATOR_CONTROL_TARGET);
+		}
+
+		public MSG_ACTUATOR_CONTROL_TARGET (byte[] bytes) {
+			super(bytes, "ACTUATOR_CONTROL_TARGET", MSG_ID_ACTUATOR_CONTROL_TARGET);
+		}
+	
+		public MSG_ACTUATOR_CONTROL_TARGET (short systemId, short componentId, long time_usec  , float controls [] , int group_mlx  ) {
+			super(systemId, componentId);
+			this.time_usec = time_usec;
+			this.controls = controls;
+			this.group_mlx = group_mlx;
+		}
+
+		@Override
+		public int getLength() {
+			return 69;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 181;
+		}
+	
+		public long getTime_usec() {
+			return time_usec;
+		}
+		
+		public void setTime_usec(long time_usec) {
+			this.time_usec = time_usec;
+		}
+		
+		public float[] getControls() {
+			return controls;
+		}
+		
+		public void setControls(float controls[]) {
+			this.controls = controls;
+		}
+		
+		public int getGroup_mlx() {
+			return group_mlx;
+		}
+		
+		public void setGroup_mlx(int group_mlx) {
+			this.group_mlx = group_mlx;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			time_usec = buffer.getLong(); // uint64_t
+  			for(int c=0; c<8; ++c) {
+				controls [c] = buffer.getFloat(); // float[8]
+ 			}
+			
+ 			group_mlx = (int)buffer.get() & 0xff; // uint8_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putLong(time_usec); // uint64_t
+  			for(int c=0; c<8; ++c) {
+				buffer.putFloat(controls [c]); // float[8]
+ 			}
+			
+ 			buffer.put((byte)(group_mlx & 0xff)); // uint8_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_ACTUATOR_CONTROL_TARGET { " + 
+			"time_usec = " + time_usec + ", " + 
+			"controls = " + controls + ", " + 
+			"group_mlx = " + group_mlx + ",  }";
+		}
+	}
+	/*
 	 * The attitude in the aeronautical frame (right-handed, Z-down, X-front, Y-right).
 	 */
 	public static class MSG_ATTITUDE extends Message {
@@ -829,6 +1152,10 @@ public class MAVLink {
 		private float pitchspeed; // Pitch angular speed (rad/s)
 		private float yawspeed; // Yaw angular speed (rad/s)
 	
+		public MSG_ATTITUDE () {
+			super("ATTITUDE", MSG_ID_ATTITUDE);
+		}
+
 		public MSG_ATTITUDE (byte[] bytes) {
 			super(bytes, "ATTITUDE", MSG_ID_ATTITUDE);
 		}
@@ -947,6 +1274,164 @@ public class MAVLink {
 			"yawspeed = " + yawspeed + ",  }";
 		}
 	}
+	public static class MSG_ATTITUDE_CONTROL extends Message {
+	
+		private float roll; // roll
+		private float pitch; // pitch
+		private float yaw; // yaw
+		private float thrust; // thrust
+		private int target; // The system to be controlled
+		private int roll_manual; // roll control enabled auto:0, manual:1
+		private int pitch_manual; // pitch auto:0, manual:1
+		private int yaw_manual; // yaw auto:0, manual:1
+		private int thrust_manual; // thrust auto:0, manual:1
+	
+		public MSG_ATTITUDE_CONTROL () {
+			super("ATTITUDE_CONTROL", MSG_ID_ATTITUDE_CONTROL);
+		}
+
+		public MSG_ATTITUDE_CONTROL (byte[] bytes) {
+			super(bytes, "ATTITUDE_CONTROL", MSG_ID_ATTITUDE_CONTROL);
+		}
+	
+		public MSG_ATTITUDE_CONTROL (short systemId, short componentId, float roll  , float pitch  , float yaw  , float thrust  , int target  , int roll_manual  , int pitch_manual  , int yaw_manual  , int thrust_manual  ) {
+			super(systemId, componentId);
+			this.roll = roll;
+			this.pitch = pitch;
+			this.yaw = yaw;
+			this.thrust = thrust;
+			this.target = target;
+			this.roll_manual = roll_manual;
+			this.pitch_manual = pitch_manual;
+			this.yaw_manual = yaw_manual;
+			this.thrust_manual = thrust_manual;
+		}
+
+		@Override
+		public int getLength() {
+			return 21;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 254;
+		}
+	
+		public float getRoll() {
+			return roll;
+		}
+		
+		public void setRoll(float roll) {
+			this.roll = roll;
+		}
+		
+		public float getPitch() {
+			return pitch;
+		}
+		
+		public void setPitch(float pitch) {
+			this.pitch = pitch;
+		}
+		
+		public float getYaw() {
+			return yaw;
+		}
+		
+		public void setYaw(float yaw) {
+			this.yaw = yaw;
+		}
+		
+		public float getThrust() {
+			return thrust;
+		}
+		
+		public void setThrust(float thrust) {
+			this.thrust = thrust;
+		}
+		
+		public int getTarget() {
+			return target;
+		}
+		
+		public void setTarget(int target) {
+			this.target = target;
+		}
+		
+		public int getRoll_manual() {
+			return roll_manual;
+		}
+		
+		public void setRoll_manual(int roll_manual) {
+			this.roll_manual = roll_manual;
+		}
+		
+		public int getPitch_manual() {
+			return pitch_manual;
+		}
+		
+		public void setPitch_manual(int pitch_manual) {
+			this.pitch_manual = pitch_manual;
+		}
+		
+		public int getYaw_manual() {
+			return yaw_manual;
+		}
+		
+		public void setYaw_manual(int yaw_manual) {
+			this.yaw_manual = yaw_manual;
+		}
+		
+		public int getThrust_manual() {
+			return thrust_manual;
+		}
+		
+		public void setThrust_manual(int thrust_manual) {
+			this.thrust_manual = thrust_manual;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			roll = buffer.getFloat(); // float
+  			pitch = buffer.getFloat(); // float
+  			yaw = buffer.getFloat(); // float
+  			thrust = buffer.getFloat(); // float
+  			target = (int)buffer.get() & 0xff; // uint8_t
+  			roll_manual = (int)buffer.get() & 0xff; // uint8_t
+  			pitch_manual = (int)buffer.get() & 0xff; // uint8_t
+  			yaw_manual = (int)buffer.get() & 0xff; // uint8_t
+  			thrust_manual = (int)buffer.get() & 0xff; // uint8_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putFloat(roll); // float
+  			buffer.putFloat(pitch); // float
+  			buffer.putFloat(yaw); // float
+  			buffer.putFloat(thrust); // float
+  			buffer.put((byte)(target & 0xff)); // uint8_t
+  			buffer.put((byte)(roll_manual & 0xff)); // uint8_t
+  			buffer.put((byte)(pitch_manual & 0xff)); // uint8_t
+  			buffer.put((byte)(yaw_manual & 0xff)); // uint8_t
+  			buffer.put((byte)(thrust_manual & 0xff)); // uint8_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_ATTITUDE_CONTROL { " + 
+			"roll = " + roll + ", " + 
+			"pitch = " + pitch + ", " + 
+			"yaw = " + yaw + ", " + 
+			"thrust = " + thrust + ", " + 
+			"target = " + target + ", " + 
+			"roll_manual = " + roll_manual + ", " + 
+			"pitch_manual = " + pitch_manual + ", " + 
+			"yaw_manual = " + yaw_manual + ", " + 
+			"thrust_manual = " + thrust_manual + ",  }";
+		}
+	}
 	/*
 	 * The attitude in the aeronautical frame (right-handed, Z-down, X-front, Y-right), expressed as quaternion. Quaternion order is w, x, y, z and a zero rotation would be expressed as (1 0 0 0).
 	 */
@@ -961,6 +1446,10 @@ public class MAVLink {
 		private float pitchspeed; // Pitch angular speed (rad/s)
 		private float yawspeed; // Yaw angular speed (rad/s)
 	
+		public MSG_ATTITUDE_QUATERNION () {
+			super("ATTITUDE_QUATERNION", MSG_ID_ATTITUDE_QUATERNION);
+		}
+
 		public MSG_ATTITUDE_QUATERNION (byte[] bytes) {
 			super(bytes, "ATTITUDE_QUATERNION", MSG_ID_ATTITUDE_QUATERNION);
 		}
@@ -1097,12 +1586,16 @@ public class MAVLink {
 	public static class MSG_ATTITUDE_QUATERNION_COV extends Message {
 	
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
-		private float q[] = new float[4]; // Quaternion components, w, x, y, z (1 0 0 0 is the null-rotation)
+		private float[] q = new float[4]; // Quaternion components, w, x, y, z (1 0 0 0 is the null-rotation)
 		private float rollspeed; // Roll angular speed (rad/s)
 		private float pitchspeed; // Pitch angular speed (rad/s)
 		private float yawspeed; // Yaw angular speed (rad/s)
-		private float covariance[] = new float[9]; // Attitude covariance
+		private float[] covariance = new float[9]; // Attitude covariance
 	
+		public MSG_ATTITUDE_QUATERNION_COV () {
+			super("ATTITUDE_QUATERNION_COV", MSG_ID_ATTITUDE_QUATERNION_COV);
+		}
+
 		public MSG_ATTITUDE_QUATERNION_COV (byte[] bytes) {
 			super(bytes, "ATTITUDE_QUATERNION_COV", MSG_ID_ATTITUDE_QUATERNION_COV);
 		}
@@ -1180,12 +1673,14 @@ public class MAVLink {
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			for(int c=0; c<4; ++c) {
+				q [c] = buffer.getFloat(); // float[4]
  			}
 			
  			rollspeed = buffer.getFloat(); // float
   			pitchspeed = buffer.getFloat(); // float
   			yawspeed = buffer.getFloat(); // float
   			for(int c=0; c<9; ++c) {
+				covariance [c] = buffer.getFloat(); // float[9]
  			}
 			
   			return buffer;
@@ -1195,12 +1690,14 @@ public class MAVLink {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			for(int c=0; c<4; ++c) {
+				buffer.putFloat(q [c]); // float[4]
  			}
 			
  			buffer.putFloat(rollspeed); // float
   			buffer.putFloat(pitchspeed); // float
   			buffer.putFloat(yawspeed); // float
   			for(int c=0; c<9; ++c) {
+				buffer.putFloat(covariance [c]); // float[9]
  			}
 			
   			return buffer;
@@ -1223,13 +1720,17 @@ public class MAVLink {
 	public static class MSG_ATTITUDE_TARGET extends Message {
 	
 		private long time_boot_ms; // Timestamp in milliseconds since system boot
-		private float q[] = new float[4]; // Attitude quaternion (w, x, y, z order, zero-rotation is 1, 0, 0, 0)
+		private float[] q = new float[4]; // Attitude quaternion (w, x, y, z order, zero-rotation is 1, 0, 0, 0)
 		private float body_roll_rate; // Body roll rate in radians per second
 		private float body_pitch_rate; // Body roll rate in radians per second
 		private float body_yaw_rate; // Body roll rate in radians per second
 		private float thrust; // Collective thrust, normalized to 0 .. 1 (-1 .. 1 for vehicles capable of reverse trust)
 		private int type_mask; // Mappings: If any of these bits are set, the corresponding input should be ignored: bit 1: body roll rate, bit 2: body pitch rate, bit 3: body yaw rate. bit 4-bit 7: reserved, bit 8: attitude
 	
+		public MSG_ATTITUDE_TARGET () {
+			super("ATTITUDE_TARGET", MSG_ID_ATTITUDE_TARGET);
+		}
+
 		public MSG_ATTITUDE_TARGET (byte[] bytes) {
 			super(bytes, "ATTITUDE_TARGET", MSG_ID_ATTITUDE_TARGET);
 		}
@@ -1316,6 +1817,7 @@ public class MAVLink {
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			for(int c=0; c<4; ++c) {
+				q [c] = buffer.getFloat(); // float[4]
  			}
 			
  			body_roll_rate = buffer.getFloat(); // float
@@ -1330,6 +1832,7 @@ public class MAVLink {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			for(int c=0; c<4; ++c) {
+				buffer.putFloat(q [c]); // float[4]
  			}
 			
  			buffer.putFloat(body_roll_rate); // float
@@ -1353,12 +1856,131 @@ public class MAVLink {
 		}
 	}
 	/*
+	 * Motion capture attitude and position
+	 */
+	public static class MSG_ATT_POS_MOCAP extends Message {
+	
+		private long time_usec; // Timestamp (micros since boot or Unix epoch)
+		private float[] q = new float[4]; // Attitude quaternion (w, x, y, z order, zero-rotation is 1, 0, 0, 0)
+		private float x; // X position in meters (NED)
+		private float y; // Y position in meters (NED)
+		private float z; // Z position in meters (NED)
+	
+		public MSG_ATT_POS_MOCAP () {
+			super("ATT_POS_MOCAP", MSG_ID_ATT_POS_MOCAP);
+		}
+
+		public MSG_ATT_POS_MOCAP (byte[] bytes) {
+			super(bytes, "ATT_POS_MOCAP", MSG_ID_ATT_POS_MOCAP);
+		}
+	
+		public MSG_ATT_POS_MOCAP (short systemId, short componentId, long time_usec  , float q [] , float x  , float y  , float z  ) {
+			super(systemId, componentId);
+			this.time_usec = time_usec;
+			this.q = q;
+			this.x = x;
+			this.y = y;
+			this.z = z;
+		}
+
+		@Override
+		public int getLength() {
+			return 80;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 109;
+		}
+	
+		public long getTime_usec() {
+			return time_usec;
+		}
+		
+		public void setTime_usec(long time_usec) {
+			this.time_usec = time_usec;
+		}
+		
+		public float[] getQ() {
+			return q;
+		}
+		
+		public void setQ(float q[]) {
+			this.q = q;
+		}
+		
+		public float getX() {
+			return x;
+		}
+		
+		public void setX(float x) {
+			this.x = x;
+		}
+		
+		public float getY() {
+			return y;
+		}
+		
+		public void setY(float y) {
+			this.y = y;
+		}
+		
+		public float getZ() {
+			return z;
+		}
+		
+		public void setZ(float z) {
+			this.z = z;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			time_usec = buffer.getLong(); // uint64_t
+  			for(int c=0; c<4; ++c) {
+				q [c] = buffer.getFloat(); // float[4]
+ 			}
+			
+ 			x = buffer.getFloat(); // float
+  			y = buffer.getFloat(); // float
+  			z = buffer.getFloat(); // float
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putLong(time_usec); // uint64_t
+  			for(int c=0; c<4; ++c) {
+				buffer.putFloat(q [c]); // float[4]
+ 			}
+			
+ 			buffer.putFloat(x); // float
+  			buffer.putFloat(y); // float
+  			buffer.putFloat(z); // float
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_ATT_POS_MOCAP { " + 
+			"time_usec = " + time_usec + ", " + 
+			"q = " + q + ", " + 
+			"x = " + x + ", " + 
+			"y = " + y + ", " + 
+			"z = " + z + ",  }";
+		}
+	}
+	/*
 	 * Emit an encrypted signature / key identifying this system. PLEASE NOTE: This protocol has been kept simple, so transmitting the key requires an encrypted channel for true safety.
 	 */
 	public static class MSG_AUTH_KEY extends Message {
 	
-		private char key[] = new char[32]; // key
+		private char[] key = new char[32]; // key
 	
+		public MSG_AUTH_KEY () {
+			super("AUTH_KEY", MSG_ID_AUTH_KEY);
+		}
+
 		public MSG_AUTH_KEY (byte[] bytes) {
 			super(bytes, "AUTH_KEY", MSG_ID_AUTH_KEY);
 		}
@@ -1417,28 +2039,48 @@ public class MAVLink {
 	public static class MSG_AUTOPILOT_VERSION extends Message {
 	
 		private long capabilities; // bitmask of capabilities (see MAV_PROTOCOL_CAPABILITY enum)
-		private long version; // Firmware version number
-		private int custom_version[] = new int[8]; // Custom version field, commonly the first 8 bytes (16 characters) of the git hash. This is not an unique identifier, but should allow to identify the commit using the main version number even for very large code bases.
+		private long uid; // UID if provided by hardware
+		private long flight_sw_version; // Firmware version number
+		private long middleware_sw_version; // Middleware version number
+		private long os_sw_version; // Operating system version number
+		private long board_version; // HW / board version (last 8 bytes should be silicon ID, if any)
+		private int vendor_id; // ID of the board vendor
+		private int product_id; // ID of the product
+		private int[] flight_custom_version = new int[8]; // Custom version field, commonly the first 8 bytes of the git hash. This is not an unique identifier, but should allow to identify the commit using the main version number even for very large code bases.
+		private int[] middleware_custom_version = new int[8]; // Custom version field, commonly the first 8 bytes of the git hash. This is not an unique identifier, but should allow to identify the commit using the main version number even for very large code bases.
+		private int[] os_custom_version = new int[8]; // Custom version field, commonly the first 8 bytes of the git hash. This is not an unique identifier, but should allow to identify the commit using the main version number even for very large code bases.
 	
+		public MSG_AUTOPILOT_VERSION () {
+			super("AUTOPILOT_VERSION", MSG_ID_AUTOPILOT_VERSION);
+		}
+
 		public MSG_AUTOPILOT_VERSION (byte[] bytes) {
 			super(bytes, "AUTOPILOT_VERSION", MSG_ID_AUTOPILOT_VERSION);
 		}
 	
-		public MSG_AUTOPILOT_VERSION (short systemId, short componentId, long capabilities  , long version  , int custom_version [] ) {
+		public MSG_AUTOPILOT_VERSION (short systemId, short componentId, long capabilities  , long uid  , long flight_sw_version  , long middleware_sw_version  , long os_sw_version  , long board_version  , int vendor_id  , int product_id  , int flight_custom_version [] , int middleware_custom_version [] , int os_custom_version [] ) {
 			super(systemId, componentId);
 			this.capabilities = capabilities;
-			this.version = version;
-			this.custom_version = custom_version;
+			this.uid = uid;
+			this.flight_sw_version = flight_sw_version;
+			this.middleware_sw_version = middleware_sw_version;
+			this.os_sw_version = os_sw_version;
+			this.board_version = board_version;
+			this.vendor_id = vendor_id;
+			this.product_id = product_id;
+			this.flight_custom_version = flight_custom_version;
+			this.middleware_custom_version = middleware_custom_version;
+			this.os_custom_version = os_custom_version;
 		}
 
 		@Override
 		public int getLength() {
-			return 69;
+			return 151;
 		}		
 	
 		@Override
 		public int getCRCExtra() {
-			return 49;
+			return 178;
 		}
 	
 		public long getCapabilities() {
@@ -1449,29 +2091,107 @@ public class MAVLink {
 			this.capabilities = capabilities;
 		}
 		
-		public long getVersion() {
-			return version;
+		public long getUid() {
+			return uid;
 		}
 		
-		public void setVersion(long version) {
-			this.version = version;
+		public void setUid(long uid) {
+			this.uid = uid;
 		}
 		
-		public int[] getCustom_version() {
-			return custom_version;
+		public long getFlight_sw_version() {
+			return flight_sw_version;
 		}
 		
-		public void setCustom_version(int custom_version[]) {
-			this.custom_version = custom_version;
+		public void setFlight_sw_version(long flight_sw_version) {
+			this.flight_sw_version = flight_sw_version;
+		}
+		
+		public long getMiddleware_sw_version() {
+			return middleware_sw_version;
+		}
+		
+		public void setMiddleware_sw_version(long middleware_sw_version) {
+			this.middleware_sw_version = middleware_sw_version;
+		}
+		
+		public long getOs_sw_version() {
+			return os_sw_version;
+		}
+		
+		public void setOs_sw_version(long os_sw_version) {
+			this.os_sw_version = os_sw_version;
+		}
+		
+		public long getBoard_version() {
+			return board_version;
+		}
+		
+		public void setBoard_version(long board_version) {
+			this.board_version = board_version;
+		}
+		
+		public int getVendor_id() {
+			return vendor_id;
+		}
+		
+		public void setVendor_id(int vendor_id) {
+			this.vendor_id = vendor_id;
+		}
+		
+		public int getProduct_id() {
+			return product_id;
+		}
+		
+		public void setProduct_id(int product_id) {
+			this.product_id = product_id;
+		}
+		
+		public int[] getFlight_custom_version() {
+			return flight_custom_version;
+		}
+		
+		public void setFlight_custom_version(int flight_custom_version[]) {
+			this.flight_custom_version = flight_custom_version;
+		}
+		
+		public int[] getMiddleware_custom_version() {
+			return middleware_custom_version;
+		}
+		
+		public void setMiddleware_custom_version(int middleware_custom_version[]) {
+			this.middleware_custom_version = middleware_custom_version;
+		}
+		
+		public int[] getOs_custom_version() {
+			return os_custom_version;
+		}
+		
+		public void setOs_custom_version(int os_custom_version[]) {
+			this.os_custom_version = os_custom_version;
 		}
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
 			
 			capabilities = buffer.getLong(); // uint64_t
-  			version = buffer.getInt() & 0xffffffff; // uint32_t
+  			uid = buffer.getLong(); // uint64_t
+  			flight_sw_version = buffer.getInt() & 0xffffffff; // uint32_t
+  			middleware_sw_version = buffer.getInt() & 0xffffffff; // uint32_t
+  			os_sw_version = buffer.getInt() & 0xffffffff; // uint32_t
+  			board_version = buffer.getInt() & 0xffffffff; // uint32_t
+  			vendor_id = buffer.getShort() & 0xffff; // uint16_t
+  			product_id = buffer.getShort() & 0xffff; // uint16_t
   			for(int c=0; c<8; ++c) {
-				custom_version [c] =  (int)buffer.get() & 0xff; // uint8_t[8]
+				flight_custom_version [c] =  (int)buffer.get() & 0xff; // uint8_t[8]
+ 			}
+			
+ 			for(int c=0; c<8; ++c) {
+				middleware_custom_version [c] =  (int)buffer.get() & 0xff; // uint8_t[8]
+ 			}
+			
+ 			for(int c=0; c<8; ++c) {
+				os_custom_version [c] =  (int)buffer.get() & 0xff; // uint8_t[8]
  			}
 			
   			return buffer;
@@ -1480,9 +2200,23 @@ public class MAVLink {
 		protected ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(capabilities); // uint64_t
-  			buffer.putInt((int)(version & 0xffffffff)); // uint32_t
+  			buffer.putLong(uid); // uint64_t
+  			buffer.putInt((int)(flight_sw_version & 0xffffffff)); // uint32_t
+  			buffer.putInt((int)(middleware_sw_version & 0xffffffff)); // uint32_t
+  			buffer.putInt((int)(os_sw_version & 0xffffffff)); // uint32_t
+  			buffer.putInt((int)(board_version & 0xffffffff)); // uint32_t
+  			buffer.putShort((short)(vendor_id & 0xffff)); // uint16_t
+  			buffer.putShort((short)(product_id & 0xffff)); // uint16_t
   			for(int c=0; c<8; ++c) {
-				buffer.put((byte)(custom_version [c] & 0xff));
+				buffer.put((byte)(flight_custom_version [c] & 0xff));
+ 			}
+			
+ 			for(int c=0; c<8; ++c) {
+				buffer.put((byte)(middleware_custom_version [c] & 0xff));
+ 			}
+			
+ 			for(int c=0; c<8; ++c) {
+				buffer.put((byte)(os_custom_version [c] & 0xff));
  			}
 			
   			return buffer;
@@ -1492,8 +2226,16 @@ public class MAVLink {
 		public String toString() {
 			return "MSG_AUTOPILOT_VERSION { " + 
 			"capabilities = " + capabilities + ", " + 
-			"version = " + version + ", " + 
-			"custom_version = " + custom_version + ",  }";
+			"uid = " + uid + ", " + 
+			"flight_sw_version = " + flight_sw_version + ", " + 
+			"middleware_sw_version = " + middleware_sw_version + ", " + 
+			"os_sw_version = " + os_sw_version + ", " + 
+			"board_version = " + board_version + ", " + 
+			"vendor_id = " + vendor_id + ", " + 
+			"product_id = " + product_id + ", " + 
+			"flight_custom_version = " + flight_custom_version + ", " + 
+			"middleware_custom_version = " + middleware_custom_version + ", " + 
+			"os_custom_version = " + os_custom_version + ",  }";
 		}
 	}
 	/*
@@ -1504,13 +2246,17 @@ public class MAVLink {
 		private int current_consumed; // Consumed charge, in milliampere hours (1 = 1 mAh), -1: autopilot does not provide mAh consumption estimate
 		private int energy_consumed; // Consumed energy, in 100*Joules (intergrated U*I*dt)  (1 = 100 Joule), -1: autopilot does not provide energy consumption estimate
 		private int temperature; // Temperature of the battery in centi-degrees celsius. INT16_MAX for unknown temperature.
-		private int voltages[] = new int[10]; // Battery voltage of cells, in millivolts (1 = 1 millivolt)
+		private int[] voltages = new int[10]; // Battery voltage of cells, in millivolts (1 = 1 millivolt)
 		private int current_battery; // Battery current, in 10*milliamperes (1 = 10 milliampere), -1: autopilot does not measure the current
 		private int id; // Battery ID
 		private int battery_function; // Function of the battery
 		private int type; // Type (chemistry) of the battery
 		private int battery_remaining; // Remaining battery energy: (0%: 0, 100%: 100), -1: autopilot does not estimate the remaining battery
 	
+		public MSG_BATTERY_STATUS () {
+			super("BATTERY_STATUS", MSG_ID_BATTERY_STATUS);
+		}
+
 		public MSG_BATTERY_STATUS (byte[] bytes) {
 			super(bytes, "BATTERY_STATUS", MSG_ID_BATTERY_STATUS);
 		}
@@ -1659,6 +2405,227 @@ public class MAVLink {
 			"battery_remaining = " + battery_remaining + ",  }";
 		}
 	}
+	public static class MSG_BRIEF_FEATURE extends Message {
+	
+		private float x; // x position in m
+		private float y; // y position in m
+		private float z; // z position in m
+		private float response; // Harris operator response at this location
+		private int size; // Size in pixels
+		private int orientation; // Orientation
+		private int orientation_assignment; // Orientation assignment 0: false, 1:true
+		private int[] descriptor = new int[32]; // Descriptor
+	
+		public MSG_BRIEF_FEATURE () {
+			super("BRIEF_FEATURE", MSG_ID_BRIEF_FEATURE);
+		}
+
+		public MSG_BRIEF_FEATURE (byte[] bytes) {
+			super(bytes, "BRIEF_FEATURE", MSG_ID_BRIEF_FEATURE);
+		}
+	
+		public MSG_BRIEF_FEATURE (short systemId, short componentId, float x  , float y  , float z  , float response  , int size  , int orientation  , int orientation_assignment  , int descriptor [] ) {
+			super(systemId, componentId);
+			this.x = x;
+			this.y = y;
+			this.z = z;
+			this.response = response;
+			this.size = size;
+			this.orientation = orientation;
+			this.orientation_assignment = orientation_assignment;
+			this.descriptor = descriptor;
+		}
+
+		@Override
+		public int getLength() {
+			return 22;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 88;
+		}
+	
+		public float getX() {
+			return x;
+		}
+		
+		public void setX(float x) {
+			this.x = x;
+		}
+		
+		public float getY() {
+			return y;
+		}
+		
+		public void setY(float y) {
+			this.y = y;
+		}
+		
+		public float getZ() {
+			return z;
+		}
+		
+		public void setZ(float z) {
+			this.z = z;
+		}
+		
+		public float getResponse() {
+			return response;
+		}
+		
+		public void setResponse(float response) {
+			this.response = response;
+		}
+		
+		public int getSize() {
+			return size;
+		}
+		
+		public void setSize(int size) {
+			this.size = size;
+		}
+		
+		public int getOrientation() {
+			return orientation;
+		}
+		
+		public void setOrientation(int orientation) {
+			this.orientation = orientation;
+		}
+		
+		public int getOrientation_assignment() {
+			return orientation_assignment;
+		}
+		
+		public void setOrientation_assignment(int orientation_assignment) {
+			this.orientation_assignment = orientation_assignment;
+		}
+		
+		public int[] getDescriptor() {
+			return descriptor;
+		}
+		
+		public void setDescriptor(int descriptor[]) {
+			this.descriptor = descriptor;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			x = buffer.getFloat(); // float
+  			y = buffer.getFloat(); // float
+  			z = buffer.getFloat(); // float
+  			response = buffer.getFloat(); // float
+  			size = buffer.getShort() & 0xffff; // uint16_t
+  			orientation = buffer.getShort() & 0xffff; // uint16_t
+  			orientation_assignment = (int)buffer.get() & 0xff; // uint8_t
+  			for(int c=0; c<32; ++c) {
+				descriptor [c] =  (int)buffer.get() & 0xff; // uint8_t[32]
+ 			}
+			
+  			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putFloat(x); // float
+  			buffer.putFloat(y); // float
+  			buffer.putFloat(z); // float
+  			buffer.putFloat(response); // float
+  			buffer.putShort((short)(size & 0xffff)); // uint16_t
+  			buffer.putShort((short)(orientation & 0xffff)); // uint16_t
+  			buffer.put((byte)(orientation_assignment & 0xff)); // uint8_t
+  			for(int c=0; c<32; ++c) {
+				buffer.put((byte)(descriptor [c] & 0xff));
+ 			}
+			
+  			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_BRIEF_FEATURE { " + 
+			"x = " + x + ", " + 
+			"y = " + y + ", " + 
+			"z = " + z + ", " + 
+			"response = " + response + ", " + 
+			"size = " + size + ", " + 
+			"orientation = " + orientation + ", " + 
+			"orientation_assignment = " + orientation_assignment + ", " + 
+			"descriptor = " + descriptor + ",  }";
+		}
+	}
+	/*
+	 * Camera-IMU triggering and synchronisation message.
+	 */
+	public static class MSG_CAMERA_TRIGGER extends Message {
+	
+		private long time_usec; // Timestamp for the image frame in microseconds
+		private long seq; // Image frame sequence
+	
+		public MSG_CAMERA_TRIGGER () {
+			super("CAMERA_TRIGGER", MSG_ID_CAMERA_TRIGGER);
+		}
+
+		public MSG_CAMERA_TRIGGER (byte[] bytes) {
+			super(bytes, "CAMERA_TRIGGER", MSG_ID_CAMERA_TRIGGER);
+		}
+	
+		public MSG_CAMERA_TRIGGER (short systemId, short componentId, long time_usec  , long seq  ) {
+			super(systemId, componentId);
+			this.time_usec = time_usec;
+			this.seq = seq;
+		}
+
+		@Override
+		public int getLength() {
+			return 68;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 174;
+		}
+	
+		public long getTime_usec() {
+			return time_usec;
+		}
+		
+		public void setTime_usec(long time_usec) {
+			this.time_usec = time_usec;
+		}
+		
+		public long getSeq() {
+			return seq;
+		}
+		
+		public void setSeq(long seq) {
+			this.seq = seq;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			time_usec = buffer.getLong(); // uint64_t
+  			seq = buffer.getInt() & 0xffffffff; // uint32_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putLong(time_usec); // uint64_t
+  			buffer.putInt((int)(seq & 0xffffffff)); // uint32_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_CAMERA_TRIGGER { " + 
+			"time_usec = " + time_usec + ", " + 
+			"seq = " + seq + ",  }";
+		}
+	}
 	/*
 	 * Request to control this MAV
 	 */
@@ -1667,8 +2634,12 @@ public class MAVLink {
 		private int target_system; // System the GCS requests control for
 		private int control_request; // 0: request control of this MAV, 1: Release control of this MAV
 		private int version; // 0: key as plaintext, 1-255: future, different hashing/encryption variants. The GCS should in general use the safest mode possible initially and then gradually move down the encryption level if it gets a NACK message indicating an encryption mismatch.
-		private char passkey[] = new char[25]; // Password / Key, depending on version plaintext or encrypted. 25 or less characters, NULL terminated. The characters may involve A-Z, a-z, 0-9, and "!?,.-"
+		private char[] passkey = new char[25]; // Password / Key, depending on version plaintext or encrypted. 25 or less characters, NULL terminated. The characters may involve A-Z, a-z, 0-9, and "!?,.-"
 	
+		public MSG_CHANGE_OPERATOR_CONTROL () {
+			super("CHANGE_OPERATOR_CONTROL", MSG_ID_CHANGE_OPERATOR_CONTROL);
+		}
+
 		public MSG_CHANGE_OPERATOR_CONTROL (byte[] bytes) {
 			super(bytes, "CHANGE_OPERATOR_CONTROL", MSG_ID_CHANGE_OPERATOR_CONTROL);
 		}
@@ -1766,6 +2737,10 @@ public class MAVLink {
 		private int control_request; // 0: request control of this MAV, 1: Release control of this MAV
 		private int ack; // 0: ACK, 1: NACK: Wrong passkey, 2: NACK: Unsupported passkey encryption method, 3: NACK: Already under control
 	
+		public MSG_CHANGE_OPERATOR_CONTROL_ACK () {
+			super("CHANGE_OPERATOR_CONTROL_ACK", MSG_ID_CHANGE_OPERATOR_CONTROL_ACK);
+		}
+
 		public MSG_CHANGE_OPERATOR_CONTROL_ACK (byte[] bytes) {
 			super(bytes, "CHANGE_OPERATOR_CONTROL_ACK", MSG_ID_CHANGE_OPERATOR_CONTROL_ACK);
 		}
@@ -1844,6 +2819,10 @@ public class MAVLink {
 		private int command; // Command ID, as defined by MAV_CMD enum.
 		private int result; // See MAV_RESULT enum
 	
+		public MSG_COMMAND_ACK () {
+			super("COMMAND_ACK", MSG_ID_COMMAND_ACK);
+		}
+
 		public MSG_COMMAND_ACK (byte[] bytes) {
 			super(bytes, "COMMAND_ACK", MSG_ID_COMMAND_ACK);
 		}
@@ -1921,6 +2900,10 @@ public class MAVLink {
 		private int current; // false:0, true:1
 		private int autocontinue; // autocontinue to next wp
 	
+		public MSG_COMMAND_INT () {
+			super("COMMAND_INT", MSG_ID_COMMAND_INT);
+		}
+
 		public MSG_COMMAND_INT (byte[] bytes) {
 			super(bytes, "COMMAND_INT", MSG_ID_COMMAND_INT);
 		}
@@ -2128,6 +3111,10 @@ public class MAVLink {
 		private int target_component; // Component which should execute the command, 0 for all components
 		private int confirmation; // 0: First transmission of this command. 1-255: Confirmation transmissions (e.g. for kill command)
 	
+		public MSG_COMMAND_LONG () {
+			super("COMMAND_LONG", MSG_ID_COMMAND_LONG);
+		}
+
 		public MSG_COMMAND_LONG (byte[] bytes) {
 			super(bytes, "COMMAND_LONG", MSG_ID_COMMAND_LONG);
 		}
@@ -2300,6 +3287,10 @@ public class MAVLink {
 		private int stream_id; // The ID of the requested data stream
 		private int on_off; // 1 stream is enabled, 0 stream is stopped.
 	
+		public MSG_DATA_STREAM () {
+			super("DATA_STREAM", MSG_ID_DATA_STREAM);
+		}
+
 		public MSG_DATA_STREAM (byte[] bytes) {
 			super(bytes, "DATA_STREAM", MSG_ID_DATA_STREAM);
 		}
@@ -2380,6 +3371,10 @@ public class MAVLink {
 		private int payload; // payload size per packet (normally 253 byte, see DATA field size in message ENCAPSULATED_DATA) (set on ACK only)
 		private int jpg_quality; // JPEG quality out of [1,100]
 	
+		public MSG_DATA_TRANSMISSION_HANDSHAKE () {
+			super("DATA_TRANSMISSION_HANDSHAKE", MSG_ID_DATA_TRANSMISSION_HANDSHAKE);
+		}
+
 		public MSG_DATA_TRANSMISSION_HANDSHAKE (byte[] bytes) {
 			super(bytes, "DATA_TRANSMISSION_HANDSHAKE", MSG_ID_DATA_TRANSMISSION_HANDSHAKE);
 		}
@@ -2507,6 +3502,10 @@ public class MAVLink {
 		private float value; // DEBUG value
 		private int ind; // index of debug variable
 	
+		public MSG_DEBUG () {
+			super("DEBUG", MSG_ID_DEBUG);
+		}
+
 		public MSG_DEBUG (byte[] bytes) {
 			super(bytes, "DEBUG", MSG_ID_DEBUG);
 		}
@@ -2583,8 +3582,12 @@ public class MAVLink {
 		private float x; // x
 		private float y; // y
 		private float z; // z
-		private char name[] = new char[10]; // Name
+		private char[] name = new char[10]; // Name
 	
+		public MSG_DEBUG_VECT () {
+			super("DEBUG_VECT", MSG_ID_DEBUG_VECT);
+		}
+
 		public MSG_DEBUG_VECT (byte[] bytes) {
 			super(bytes, "DEBUG_VECT", MSG_ID_DEBUG_VECT);
 		}
@@ -2685,6 +3688,203 @@ public class MAVLink {
 			"name = " + name + ",  }";
 		}
 	}
+	public static class MSG_DETECTION_STATS extends Message {
+	
+		private long detections; // Number of detections
+		private long cluster_iters; // Number of cluster iterations
+		private float best_score; // Best score
+		private int best_lat; // Latitude of the best detection * 1E7
+		private int best_lon; // Longitude of the best detection * 1E7
+		private int best_alt; // Altitude of the best detection * 1E3
+		private long best_detection_id; // Best detection ID
+		private long best_cluster_id; // Best cluster ID
+		private long best_cluster_iter_id; // Best cluster ID
+		private long images_done; // Number of images already processed
+		private long images_todo; // Number of images still to process
+		private float fps; // Average images per seconds processed
+	
+		public MSG_DETECTION_STATS () {
+			super("DETECTION_STATS", MSG_ID_DETECTION_STATS);
+		}
+
+		public MSG_DETECTION_STATS (byte[] bytes) {
+			super(bytes, "DETECTION_STATS", MSG_ID_DETECTION_STATS);
+		}
+	
+		public MSG_DETECTION_STATS (short systemId, short componentId, long detections  , long cluster_iters  , float best_score  , int best_lat  , int best_lon  , int best_alt  , long best_detection_id  , long best_cluster_id  , long best_cluster_iter_id  , long images_done  , long images_todo  , float fps  ) {
+			super(systemId, componentId);
+			this.detections = detections;
+			this.cluster_iters = cluster_iters;
+			this.best_score = best_score;
+			this.best_lat = best_lat;
+			this.best_lon = best_lon;
+			this.best_alt = best_alt;
+			this.best_detection_id = best_detection_id;
+			this.best_cluster_id = best_cluster_id;
+			this.best_cluster_iter_id = best_cluster_iter_id;
+			this.images_done = images_done;
+			this.images_todo = images_todo;
+			this.fps = fps;
+		}
+
+		@Override
+		public int getLength() {
+			return 48;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 87;
+		}
+	
+		public long getDetections() {
+			return detections;
+		}
+		
+		public void setDetections(long detections) {
+			this.detections = detections;
+		}
+		
+		public long getCluster_iters() {
+			return cluster_iters;
+		}
+		
+		public void setCluster_iters(long cluster_iters) {
+			this.cluster_iters = cluster_iters;
+		}
+		
+		public float getBest_score() {
+			return best_score;
+		}
+		
+		public void setBest_score(float best_score) {
+			this.best_score = best_score;
+		}
+		
+		public int getBest_lat() {
+			return best_lat;
+		}
+		
+		public void setBest_lat(int best_lat) {
+			this.best_lat = best_lat;
+		}
+		
+		public int getBest_lon() {
+			return best_lon;
+		}
+		
+		public void setBest_lon(int best_lon) {
+			this.best_lon = best_lon;
+		}
+		
+		public int getBest_alt() {
+			return best_alt;
+		}
+		
+		public void setBest_alt(int best_alt) {
+			this.best_alt = best_alt;
+		}
+		
+		public long getBest_detection_id() {
+			return best_detection_id;
+		}
+		
+		public void setBest_detection_id(long best_detection_id) {
+			this.best_detection_id = best_detection_id;
+		}
+		
+		public long getBest_cluster_id() {
+			return best_cluster_id;
+		}
+		
+		public void setBest_cluster_id(long best_cluster_id) {
+			this.best_cluster_id = best_cluster_id;
+		}
+		
+		public long getBest_cluster_iter_id() {
+			return best_cluster_iter_id;
+		}
+		
+		public void setBest_cluster_iter_id(long best_cluster_iter_id) {
+			this.best_cluster_iter_id = best_cluster_iter_id;
+		}
+		
+		public long getImages_done() {
+			return images_done;
+		}
+		
+		public void setImages_done(long images_done) {
+			this.images_done = images_done;
+		}
+		
+		public long getImages_todo() {
+			return images_todo;
+		}
+		
+		public void setImages_todo(long images_todo) {
+			this.images_todo = images_todo;
+		}
+		
+		public float getFps() {
+			return fps;
+		}
+		
+		public void setFps(float fps) {
+			this.fps = fps;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			detections = buffer.getInt() & 0xffffffff; // uint32_t
+  			cluster_iters = buffer.getInt() & 0xffffffff; // uint32_t
+  			best_score = buffer.getFloat(); // float
+  			best_lat = buffer.getInt(); // int32_t
+  			best_lon = buffer.getInt(); // int32_t
+  			best_alt = buffer.getInt(); // int32_t
+  			best_detection_id = buffer.getInt() & 0xffffffff; // uint32_t
+  			best_cluster_id = buffer.getInt() & 0xffffffff; // uint32_t
+  			best_cluster_iter_id = buffer.getInt() & 0xffffffff; // uint32_t
+  			images_done = buffer.getInt() & 0xffffffff; // uint32_t
+  			images_todo = buffer.getInt() & 0xffffffff; // uint32_t
+  			fps = buffer.getFloat(); // float
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putInt((int)(detections & 0xffffffff)); // uint32_t
+  			buffer.putInt((int)(cluster_iters & 0xffffffff)); // uint32_t
+  			buffer.putFloat(best_score); // float
+  			buffer.putInt((int)(best_lat)); // int32_t
+  			buffer.putInt((int)(best_lon)); // int32_t
+  			buffer.putInt((int)(best_alt)); // int32_t
+  			buffer.putInt((int)(best_detection_id & 0xffffffff)); // uint32_t
+  			buffer.putInt((int)(best_cluster_id & 0xffffffff)); // uint32_t
+  			buffer.putInt((int)(best_cluster_iter_id & 0xffffffff)); // uint32_t
+  			buffer.putInt((int)(images_done & 0xffffffff)); // uint32_t
+  			buffer.putInt((int)(images_todo & 0xffffffff)); // uint32_t
+  			buffer.putFloat(fps); // float
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_DETECTION_STATS { " + 
+			"detections = " + detections + ", " + 
+			"cluster_iters = " + cluster_iters + ", " + 
+			"best_score = " + best_score + ", " + 
+			"best_lat = " + best_lat + ", " + 
+			"best_lon = " + best_lon + ", " + 
+			"best_alt = " + best_alt + ", " + 
+			"best_detection_id = " + best_detection_id + ", " + 
+			"best_cluster_id = " + best_cluster_id + ", " + 
+			"best_cluster_iter_id = " + best_cluster_iter_id + ", " + 
+			"images_done = " + images_done + ", " + 
+			"images_todo = " + images_todo + ", " + 
+			"fps = " + fps + ",  }";
+		}
+	}
 	public static class MSG_DISTANCE_SENSOR extends Message {
 	
 		private long time_boot_ms; // Time since system boot
@@ -2696,6 +3896,10 @@ public class MAVLink {
 		private int orientation; // Direction the sensor faces from FIXME enum.
 		private int covariance; // Measurement covariance in centimeters, 0 for unknown / invalid readings
 	
+		public MSG_DISTANCE_SENSOR () {
+			super("DISTANCE_SENSOR", MSG_ID_DISTANCE_SENSOR);
+		}
+
 		public MSG_DISTANCE_SENSOR (byte[] bytes) {
 			super(bytes, "DISTANCE_SENSOR", MSG_ID_DISTANCE_SENSOR);
 		}
@@ -2829,8 +4033,12 @@ public class MAVLink {
 	public static class MSG_ENCAPSULATED_DATA extends Message {
 	
 		private int seqnr; // sequence number (starting with 0 on every transmission)
-		private int data[] = new int[253]; // image data bytes
+		private int[] data = new int[253]; // image data bytes
 	
+		public MSG_ENCAPSULATED_DATA () {
+			super("ENCAPSULATED_DATA", MSG_ID_ENCAPSULATED_DATA);
+		}
+
 		public MSG_ENCAPSULATED_DATA (byte[] bytes) {
 			super(bytes, "ENCAPSULATED_DATA", MSG_ID_ENCAPSULATED_DATA);
 		}
@@ -2903,8 +4111,12 @@ public class MAVLink {
 		private int target_network; // Network ID (0 for broadcast)
 		private int target_system; // System ID (0 for broadcast)
 		private int target_component; // Component ID (0 for broadcast)
-		private int payload[] = new int[251]; // Variable length payload. The length is defined by the remaining message length when subtracting the header and other fields.  The entire content of this block is opaque unless you understand any the encoding message_type.  The particular encoding used can be extension specific and might not always be documented as part of the mavlink specification.
+		private int[] payload = new int[251]; // Variable length payload. The length is defined by the remaining message length when subtracting the header and other fields.  The entire content of this block is opaque unless you understand any the encoding message_type.  The particular encoding used can be extension specific and might not always be documented as part of the mavlink specification.
 	
+		public MSG_FILE_TRANSFER_PROTOCOL () {
+			super("FILE_TRANSFER_PROTOCOL", MSG_ID_FILE_TRANSFER_PROTOCOL);
+		}
+
 		public MSG_FILE_TRANSFER_PROTOCOL (byte[] bytes) {
 			super(bytes, "FILE_TRANSFER_PROTOCOL", MSG_ID_FILE_TRANSFER_PROTOCOL);
 		}
@@ -3002,13 +4214,17 @@ public class MAVLink {
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private int lat; // Latitude, expressed as * 1E7
 		private int lon; // Longitude, expressed as * 1E7
-		private int alt; // Altitude in meters, expressed as * 1000 (millimeters), WGS84 (not AMSL)
+		private int alt; // Altitude in meters, expressed as * 1000 (millimeters), AMSL (not WGS84 - note that virtually all GPS modules provide the AMSL as well)
 		private int relative_alt; // Altitude above ground in meters, expressed as * 1000 (millimeters)
 		private int vx; // Ground X Speed (Latitude), expressed as m/s * 100
 		private int vy; // Ground Y Speed (Longitude), expressed as m/s * 100
 		private int vz; // Ground Z Speed (Altitude), expressed as m/s * 100
 		private int hdg; // Compass heading in degrees * 100, 0.0..359.99 degrees. If unknown, set to: UINT16_MAX
 	
+		public MSG_GLOBAL_POSITION_INT () {
+			super("GLOBAL_POSITION_INT", MSG_ID_GLOBAL_POSITION_INT);
+		}
+
 		public MSG_GLOBAL_POSITION_INT (byte[] bytes) {
 			super(bytes, "GLOBAL_POSITION_INT", MSG_ID_GLOBAL_POSITION_INT);
 		}
@@ -3165,9 +4381,13 @@ public class MAVLink {
 		private float vx; // Ground X Speed (Latitude), expressed as m/s
 		private float vy; // Ground Y Speed (Longitude), expressed as m/s
 		private float vz; // Ground Z Speed (Altitude), expressed as m/s
-		private float covariance[] = new float[36]; // Covariance matrix (first six entries are the first ROW, next six entries are the second row, etc.)
+		private float[] covariance = new float[36]; // Covariance matrix (first six entries are the first ROW, next six entries are the second row, etc.)
 		private int estimator_type; // Class id of the estimator this estimate originated from.
 	
+		public MSG_GLOBAL_POSITION_INT_COV () {
+			super("GLOBAL_POSITION_INT_COV", MSG_ID_GLOBAL_POSITION_INT_COV);
+		}
+
 		public MSG_GLOBAL_POSITION_INT_COV (byte[] bytes) {
 			super(bytes, "GLOBAL_POSITION_INT_COV", MSG_ID_GLOBAL_POSITION_INT_COV);
 		}
@@ -3298,6 +4518,7 @@ public class MAVLink {
   			vy = buffer.getFloat(); // float
   			vz = buffer.getFloat(); // float
   			for(int c=0; c<36; ++c) {
+				covariance [c] = buffer.getFloat(); // float[36]
  			}
 			
  			estimator_type = (int)buffer.get() & 0xff; // uint8_t
@@ -3316,6 +4537,7 @@ public class MAVLink {
   			buffer.putFloat(vy); // float
   			buffer.putFloat(vz); // float
   			for(int c=0; c<36; ++c) {
+				buffer.putFloat(covariance [c]); // float[36]
  			}
 			
  			buffer.put((byte)(estimator_type & 0xff)); // uint8_t
@@ -3348,6 +4570,10 @@ public class MAVLink {
 		private float pitch; // Pitch angle in rad
 		private float yaw; // Yaw angle in rad
 	
+		public MSG_GLOBAL_VISION_POSITION_ESTIMATE () {
+			super("GLOBAL_VISION_POSITION_ESTIMATE", MSG_ID_GLOBAL_VISION_POSITION_ESTIMATE);
+		}
+
 		public MSG_GLOBAL_VISION_POSITION_ESTIMATE (byte[] bytes) {
 			super(bytes, "GLOBAL_VISION_POSITION_ESTIMATE", MSG_ID_GLOBAL_VISION_POSITION_ESTIMATE);
 		}
@@ -3474,7 +4700,7 @@ public class MAVLink {
 		private long time_usec; // Timestamp (microseconds since UNIX epoch or microseconds since system boot)
 		private int lat; // Latitude (WGS84), in degrees * 1E7
 		private int lon; // Longitude (WGS84), in degrees * 1E7
-		private int alt; // Altitude (WGS84), in meters * 1000 (positive for up)
+		private int alt; // Altitude (AMSL, not WGS84), in meters * 1000 (positive for up)
 		private long dgps_age; // Age of DGPS info
 		private int eph; // GPS HDOP horizontal dilution of position in cm (m*100). If unknown, set to: UINT16_MAX
 		private int epv; // GPS VDOP vertical dilution of position in cm (m*100). If unknown, set to: UINT16_MAX
@@ -3484,6 +4710,10 @@ public class MAVLink {
 		private int satellites_visible; // Number of satellites visible. If unknown, set to 255
 		private int dgps_numch; // Number of DGPS satellites
 	
+		public MSG_GPS2_RAW () {
+			super("GPS2_RAW", MSG_ID_GPS2_RAW);
+		}
+
 		public MSG_GPS2_RAW (byte[] bytes) {
 			super(bytes, "GPS2_RAW", MSG_ID_GPS2_RAW);
 		}
@@ -3681,6 +4911,10 @@ public class MAVLink {
 		private int nsats; // Current number of sats used for RTK calculation.
 		private int baseline_coords_type; // Coordinate system of baseline. 0 == ECEF, 1 == NED
 	
+		public MSG_GPS2_RTK () {
+			super("GPS2_RTK", MSG_ID_GPS2_RTK);
+		}
+
 		public MSG_GPS2_RTK (byte[] bytes) {
 			super(bytes, "GPS2_RTK", MSG_ID_GPS2_RTK);
 		}
@@ -3878,8 +5112,12 @@ public class MAVLink {
 	
 		private int latitude; // Latitude (WGS84), in degrees * 1E7
 		private int longitude; // Longitude (WGS84), in degrees * 1E7
-		private int altitude; // Altitude (WGS84), in meters * 1000 (positive for up)
+		private int altitude; // Altitude (AMSL), in meters * 1000 (positive for up)
 	
+		public MSG_GPS_GLOBAL_ORIGIN () {
+			super("GPS_GLOBAL_ORIGIN", MSG_ID_GPS_GLOBAL_ORIGIN);
+		}
+
 		public MSG_GPS_GLOBAL_ORIGIN (byte[] bytes) {
 			super(bytes, "GPS_GLOBAL_ORIGIN", MSG_ID_GPS_GLOBAL_ORIGIN);
 		}
@@ -3958,8 +5196,12 @@ public class MAVLink {
 		private int target_system; // System ID
 		private int target_component; // Component ID
 		private int len; // data length
-		private int data[] = new int[110]; // raw data (110 is enough for 12 satellites of RTCMv2)
+		private int[] data = new int[110]; // raw data (110 is enough for 12 satellites of RTCMv2)
 	
+		public MSG_GPS_INJECT_DATA () {
+			super("GPS_INJECT_DATA", MSG_ID_GPS_INJECT_DATA);
+		}
+
 		public MSG_GPS_INJECT_DATA (byte[] bytes) {
 			super(bytes, "GPS_INJECT_DATA", MSG_ID_GPS_INJECT_DATA);
 		}
@@ -4050,14 +5292,14 @@ public class MAVLink {
 	}
 	/*
 	 * The global position, as returned by the Global Positioning System (GPS). This is
-                NOT the global position estimate of the sytem, but rather a RAW sensor value. See message GLOBAL_POSITION for the global position estimate. Coordinate frame is right-handed, Z-axis up (GPS frame).
+                NOT the global position estimate of the system, but rather a RAW sensor value. See message GLOBAL_POSITION for the global position estimate. Coordinate frame is right-handed, Z-axis up (GPS frame).
 	 */
 	public static class MSG_GPS_RAW_INT extends Message {
 	
 		private long time_usec; // Timestamp (microseconds since UNIX epoch or microseconds since system boot)
 		private int lat; // Latitude (WGS84), in degrees * 1E7
 		private int lon; // Longitude (WGS84), in degrees * 1E7
-		private int alt; // Altitude (WGS84), in meters * 1000 (positive for up)
+		private int alt; // Altitude (AMSL, NOT WGS84), in meters * 1000 (positive for up). Note that virtually all GPS modules provide the AMSL altitude in addition to the WGS84 altitude.
 		private int eph; // GPS HDOP horizontal dilution of position in cm (m*100). If unknown, set to: UINT16_MAX
 		private int epv; // GPS VDOP vertical dilution of position in cm (m*100). If unknown, set to: UINT16_MAX
 		private int vel; // GPS ground speed (m/s * 100). If unknown, set to: UINT16_MAX
@@ -4065,6 +5307,10 @@ public class MAVLink {
 		private int fix_type; // 0-1: no fix, 2: 2D fix, 3: 3D fix, 4: DGPS, 5: RTK. Some applications will not use the value of this field unless it is at least two, so always correctly fill in the fix.
 		private int satellites_visible; // Number of satellites visible. If unknown, set to 255
 	
+		public MSG_GPS_RAW_INT () {
+			super("GPS_RAW_INT", MSG_ID_GPS_RAW_INT);
+		}
+
 		public MSG_GPS_RAW_INT (byte[] bytes) {
 			super(bytes, "GPS_RAW_INT", MSG_ID_GPS_RAW_INT);
 		}
@@ -4238,6 +5484,10 @@ public class MAVLink {
 		private int nsats; // Current number of sats used for RTK calculation.
 		private int baseline_coords_type; // Coordinate system of baseline. 0 == ECEF, 1 == NED
 	
+		public MSG_GPS_RTK () {
+			super("GPS_RTK", MSG_ID_GPS_RTK);
+		}
+
 		public MSG_GPS_RTK (byte[] bytes) {
 			super(bytes, "GPS_RTK", MSG_ID_GPS_RTK);
 		}
@@ -4434,12 +5684,16 @@ public class MAVLink {
 	public static class MSG_GPS_STATUS extends Message {
 	
 		private int satellites_visible; // Number of satellites visible
-		private int satellite_prn[] = new int[20]; // Global satellite ID
-		private int satellite_used[] = new int[20]; // 0: Satellite not used, 1: used for localization
-		private int satellite_elevation[] = new int[20]; // Elevation (0: right on top of receiver, 90: on the horizon) of satellite
-		private int satellite_azimuth[] = new int[20]; // Direction of satellite, 0: 0 deg, 255: 360 deg.
-		private int satellite_snr[] = new int[20]; // Signal to noise ratio of satellite
+		private int[] satellite_prn = new int[20]; // Global satellite ID
+		private int[] satellite_used = new int[20]; // 0: Satellite not used, 1: used for localization
+		private int[] satellite_elevation = new int[20]; // Elevation (0: right on top of receiver, 90: on the horizon) of satellite
+		private int[] satellite_azimuth = new int[20]; // Direction of satellite, 0: 0 deg, 255: 360 deg.
+		private int[] satellite_snr = new int[20]; // Signal to noise ratio of satellite
 	
+		public MSG_GPS_STATUS () {
+			super("GPS_STATUS", MSG_ID_GPS_STATUS);
+		}
+
 		public MSG_GPS_STATUS (byte[] bytes) {
 			super(bytes, "GPS_STATUS", MSG_ID_GPS_STATUS);
 		}
@@ -4588,6 +5842,10 @@ public class MAVLink {
 		private int system_status; // System status flag, see MAV_STATE ENUM
 		private int mavlink_version; // MAVLink version, not writable by user, gets added by protocol because of magic data type: uint8_t_mavlink_version
 	
+		public MSG_HEARTBEAT () {
+			super("HEARTBEAT", MSG_ID_HEARTBEAT);
+		}
+
 		public MSG_HEARTBEAT (byte[] bytes) {
 			super(bytes, "HEARTBEAT", MSG_ID_HEARTBEAT);
 		}
@@ -4715,6 +5973,10 @@ public class MAVLink {
 		private float temperature; // Temperature in degrees celsius
 		private int fields_updated; // Bitmask for fields that have updated since last message, bit 0 = xacc, bit 12: temperature
 	
+		public MSG_HIGHRES_IMU () {
+			super("HIGHRES_IMU", MSG_ID_HIGHRES_IMU);
+		}
+
 		public MSG_HIGHRES_IMU (byte[] bytes) {
 			super(bytes, "HIGHRES_IMU", MSG_ID_HIGHRES_IMU);
 		}
@@ -4946,6 +6208,10 @@ public class MAVLink {
 		private int mode; // System mode (MAV_MODE)
 		private int nav_mode; // Navigation mode (MAV_NAV_MODE)
 	
+		public MSG_HIL_CONTROLS () {
+			super("HIL_CONTROLS", MSG_ID_HIL_CONTROLS);
+		}
+
 		public MSG_HIL_CONTROLS (byte[] bytes) {
 			super(bytes, "HIL_CONTROLS", MSG_ID_HIL_CONTROLS);
 		}
@@ -5121,7 +6387,7 @@ public class MAVLink {
 		private long time_usec; // Timestamp (microseconds since UNIX epoch or microseconds since system boot)
 		private int lat; // Latitude (WGS84), in degrees * 1E7
 		private int lon; // Longitude (WGS84), in degrees * 1E7
-		private int alt; // Altitude (WGS84), in meters * 1000 (positive for up)
+		private int alt; // Altitude (AMSL, not WGS84), in meters * 1000 (positive for up)
 		private int eph; // GPS HDOP horizontal dilution of position in cm (m*100). If unknown, set to: 65535
 		private int epv; // GPS VDOP vertical dilution of position in cm (m*100). If unknown, set to: 65535
 		private int vel; // GPS ground speed (m/s * 100). If unknown, set to: 65535
@@ -5132,6 +6398,10 @@ public class MAVLink {
 		private int fix_type; // 0-1: no fix, 2: 2D fix, 3: 3D fix. Some applications will not use the value of this field unless it is at least two, so always correctly fill in the fix.
 		private int satellites_visible; // Number of satellites visible. If unknown, set to 255
 	
+		public MSG_HIL_GPS () {
+			super("HIL_GPS", MSG_ID_HIL_GPS);
+		}
+
 		public MSG_HIL_GPS (byte[] bytes) {
 			super(bytes, "HIL_GPS", MSG_ID_HIL_GPS);
 		}
@@ -5323,43 +6593,55 @@ public class MAVLink {
 		}
 	}
 	/*
-	 * Simulated optical flow from a flow sensor (e.g. optical mouse sensor)
+	 * Simulated optical flow from a flow sensor (e.g. PX4FLOW or optical mouse sensor)
 	 */
 	public static class MSG_HIL_OPTICAL_FLOW extends Message {
 	
-		private long time_usec; // Timestamp (UNIX)
-		private float flow_comp_m_x; // Flow in meters in x-sensor direction, angular-speed compensated
-		private float flow_comp_m_y; // Flow in meters in y-sensor direction, angular-speed compensated
-		private float ground_distance; // Ground distance in meters. Positive value: distance known. Negative value: Unknown distance
-		private int flow_x; // Flow in pixels in x-sensor direction
-		private int flow_y; // Flow in pixels in y-sensor direction
+		private long time_usec; // Timestamp (microseconds, synced to UNIX time or since system boot)
+		private long integration_time_us; // Integration time in microseconds. Divide integrated_x and integrated_y by the integration time to obtain average flow. The integration time also indicates the.
+		private float integrated_x; // Flow in radians around X axis (Sensor RH rotation about the X axis induces a positive flow. Sensor linear motion along the positive Y axis induces a negative flow.)
+		private float integrated_y; // Flow in radians around Y axis (Sensor RH rotation about the Y axis induces a positive flow. Sensor linear motion along the positive X axis induces a positive flow.)
+		private float integrated_xgyro; // RH rotation around X axis (rad)
+		private float integrated_ygyro; // RH rotation around Y axis (rad)
+		private float integrated_zgyro; // RH rotation around Z axis (rad)
+		private long time_delta_distance_us; // Time in microseconds since the distance was sampled.
+		private float distance; // Distance to the center of the flow field in meters. Positive value (including zero): distance known. Negative value: Unknown distance.
+		private int temperature; // Temperature * 100 in centi-degrees Celsius
 		private int sensor_id; // Sensor ID
-		private int quality; // Optical flow quality / confidence. 0: bad, 255: maximum quality
+		private int quality; // Optical flow quality / confidence. 0: no valid flow, 255: maximum quality
 	
+		public MSG_HIL_OPTICAL_FLOW () {
+			super("HIL_OPTICAL_FLOW", MSG_ID_HIL_OPTICAL_FLOW);
+		}
+
 		public MSG_HIL_OPTICAL_FLOW (byte[] bytes) {
 			super(bytes, "HIL_OPTICAL_FLOW", MSG_ID_HIL_OPTICAL_FLOW);
 		}
 	
-		public MSG_HIL_OPTICAL_FLOW (short systemId, short componentId, long time_usec  , float flow_comp_m_x  , float flow_comp_m_y  , float ground_distance  , int flow_x  , int flow_y  , int sensor_id  , int quality  ) {
+		public MSG_HIL_OPTICAL_FLOW (short systemId, short componentId, long time_usec  , long integration_time_us  , float integrated_x  , float integrated_y  , float integrated_xgyro  , float integrated_ygyro  , float integrated_zgyro  , long time_delta_distance_us  , float distance  , int temperature  , int sensor_id  , int quality  ) {
 			super(systemId, componentId);
 			this.time_usec = time_usec;
-			this.flow_comp_m_x = flow_comp_m_x;
-			this.flow_comp_m_y = flow_comp_m_y;
-			this.ground_distance = ground_distance;
-			this.flow_x = flow_x;
-			this.flow_y = flow_y;
+			this.integration_time_us = integration_time_us;
+			this.integrated_x = integrated_x;
+			this.integrated_y = integrated_y;
+			this.integrated_xgyro = integrated_xgyro;
+			this.integrated_ygyro = integrated_ygyro;
+			this.integrated_zgyro = integrated_zgyro;
+			this.time_delta_distance_us = time_delta_distance_us;
+			this.distance = distance;
+			this.temperature = temperature;
 			this.sensor_id = sensor_id;
 			this.quality = quality;
 		}
 
 		@Override
 		public int getLength() {
-			return 82;
+			return 100;
 		}		
 	
 		@Override
 		public int getCRCExtra() {
-			return 119;
+			return 237;
 		}
 	
 		public long getTime_usec() {
@@ -5370,44 +6652,76 @@ public class MAVLink {
 			this.time_usec = time_usec;
 		}
 		
-		public float getFlow_comp_m_x() {
-			return flow_comp_m_x;
+		public long getIntegration_time_us() {
+			return integration_time_us;
 		}
 		
-		public void setFlow_comp_m_x(float flow_comp_m_x) {
-			this.flow_comp_m_x = flow_comp_m_x;
+		public void setIntegration_time_us(long integration_time_us) {
+			this.integration_time_us = integration_time_us;
 		}
 		
-		public float getFlow_comp_m_y() {
-			return flow_comp_m_y;
+		public float getIntegrated_x() {
+			return integrated_x;
 		}
 		
-		public void setFlow_comp_m_y(float flow_comp_m_y) {
-			this.flow_comp_m_y = flow_comp_m_y;
+		public void setIntegrated_x(float integrated_x) {
+			this.integrated_x = integrated_x;
 		}
 		
-		public float getGround_distance() {
-			return ground_distance;
+		public float getIntegrated_y() {
+			return integrated_y;
 		}
 		
-		public void setGround_distance(float ground_distance) {
-			this.ground_distance = ground_distance;
+		public void setIntegrated_y(float integrated_y) {
+			this.integrated_y = integrated_y;
 		}
 		
-		public int getFlow_x() {
-			return flow_x;
+		public float getIntegrated_xgyro() {
+			return integrated_xgyro;
 		}
 		
-		public void setFlow_x(int flow_x) {
-			this.flow_x = flow_x;
+		public void setIntegrated_xgyro(float integrated_xgyro) {
+			this.integrated_xgyro = integrated_xgyro;
 		}
 		
-		public int getFlow_y() {
-			return flow_y;
+		public float getIntegrated_ygyro() {
+			return integrated_ygyro;
 		}
 		
-		public void setFlow_y(int flow_y) {
-			this.flow_y = flow_y;
+		public void setIntegrated_ygyro(float integrated_ygyro) {
+			this.integrated_ygyro = integrated_ygyro;
+		}
+		
+		public float getIntegrated_zgyro() {
+			return integrated_zgyro;
+		}
+		
+		public void setIntegrated_zgyro(float integrated_zgyro) {
+			this.integrated_zgyro = integrated_zgyro;
+		}
+		
+		public long getTime_delta_distance_us() {
+			return time_delta_distance_us;
+		}
+		
+		public void setTime_delta_distance_us(long time_delta_distance_us) {
+			this.time_delta_distance_us = time_delta_distance_us;
+		}
+		
+		public float getDistance() {
+			return distance;
+		}
+		
+		public void setDistance(float distance) {
+			this.distance = distance;
+		}
+		
+		public int getTemperature() {
+			return temperature;
+		}
+		
+		public void setTemperature(int temperature) {
+			this.temperature = temperature;
 		}
 		
 		public int getSensor_id() {
@@ -5430,11 +6744,15 @@ public class MAVLink {
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
 			
 			time_usec = buffer.getLong(); // uint64_t
-  			flow_comp_m_x = buffer.getFloat(); // float
-  			flow_comp_m_y = buffer.getFloat(); // float
-  			ground_distance = buffer.getFloat(); // float
-  			flow_x = buffer.getShort(); // int16_t
-  			flow_y = buffer.getShort(); // int16_t
+  			integration_time_us = buffer.getInt() & 0xffffffff; // uint32_t
+  			integrated_x = buffer.getFloat(); // float
+  			integrated_y = buffer.getFloat(); // float
+  			integrated_xgyro = buffer.getFloat(); // float
+  			integrated_ygyro = buffer.getFloat(); // float
+  			integrated_zgyro = buffer.getFloat(); // float
+  			time_delta_distance_us = buffer.getInt() & 0xffffffff; // uint32_t
+  			distance = buffer.getFloat(); // float
+  			temperature = buffer.getShort(); // int16_t
   			sensor_id = (int)buffer.get() & 0xff; // uint8_t
   			quality = (int)buffer.get() & 0xff; // uint8_t
    			return buffer;
@@ -5443,11 +6761,15 @@ public class MAVLink {
 		protected ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
-  			buffer.putFloat(flow_comp_m_x); // float
-  			buffer.putFloat(flow_comp_m_y); // float
-  			buffer.putFloat(ground_distance); // float
-  			buffer.putShort((short)(flow_x)); // int16_t
-  			buffer.putShort((short)(flow_y)); // int16_t
+  			buffer.putInt((int)(integration_time_us & 0xffffffff)); // uint32_t
+  			buffer.putFloat(integrated_x); // float
+  			buffer.putFloat(integrated_y); // float
+  			buffer.putFloat(integrated_xgyro); // float
+  			buffer.putFloat(integrated_ygyro); // float
+  			buffer.putFloat(integrated_zgyro); // float
+  			buffer.putInt((int)(time_delta_distance_us & 0xffffffff)); // uint32_t
+  			buffer.putFloat(distance); // float
+  			buffer.putShort((short)(temperature)); // int16_t
   			buffer.put((byte)(sensor_id & 0xff)); // uint8_t
   			buffer.put((byte)(quality & 0xff)); // uint8_t
    			return buffer;
@@ -5457,11 +6779,15 @@ public class MAVLink {
 		public String toString() {
 			return "MSG_HIL_OPTICAL_FLOW { " + 
 			"time_usec = " + time_usec + ", " + 
-			"flow_comp_m_x = " + flow_comp_m_x + ", " + 
-			"flow_comp_m_y = " + flow_comp_m_y + ", " + 
-			"ground_distance = " + ground_distance + ", " + 
-			"flow_x = " + flow_x + ", " + 
-			"flow_y = " + flow_y + ", " + 
+			"integration_time_us = " + integration_time_us + ", " + 
+			"integrated_x = " + integrated_x + ", " + 
+			"integrated_y = " + integrated_y + ", " + 
+			"integrated_xgyro = " + integrated_xgyro + ", " + 
+			"integrated_ygyro = " + integrated_ygyro + ", " + 
+			"integrated_zgyro = " + integrated_zgyro + ", " + 
+			"time_delta_distance_us = " + time_delta_distance_us + ", " + 
+			"distance = " + distance + ", " + 
+			"temperature = " + temperature + ", " + 
 			"sensor_id = " + sensor_id + ", " + 
 			"quality = " + quality + ",  }";
 		}
@@ -5486,6 +6812,10 @@ public class MAVLink {
 		private int chan12_raw; // RC channel 12 value, in microseconds
 		private int rssi; // Receive signal strength indicator, 0: 0%, 255: 100%
 	
+		public MSG_HIL_RC_INPUTS_RAW () {
+			super("HIL_RC_INPUTS_RAW", MSG_ID_HIL_RC_INPUTS_RAW);
+		}
+
 		public MSG_HIL_RC_INPUTS_RAW (byte[] bytes) {
 			super(bytes, "HIL_RC_INPUTS_RAW", MSG_ID_HIL_RC_INPUTS_RAW);
 		}
@@ -5709,6 +7039,10 @@ public class MAVLink {
 		private float temperature; // Temperature in degrees celsius
 		private long fields_updated; // Bitmask for fields that have updated since last message, bit 0 = xacc, bit 12: temperature
 	
+		public MSG_HIL_SENSOR () {
+			super("HIL_SENSOR", MSG_ID_HIL_SENSOR);
+		}
+
 		public MSG_HIL_SENSOR (byte[] bytes) {
 			super(bytes, "HIL_SENSOR", MSG_ID_HIL_SENSOR);
 		}
@@ -5945,6 +7279,10 @@ public class MAVLink {
 		private int yacc; // Y acceleration (mg)
 		private int zacc; // Z acceleration (mg)
 	
+		public MSG_HIL_STATE () {
+			super("HIL_STATE", MSG_ID_HIL_STATE);
+		}
+
 		public MSG_HIL_STATE (byte[] bytes) {
 			super(bytes, "HIL_STATE", MSG_ID_HIL_STATE);
 		}
@@ -6177,7 +7515,7 @@ public class MAVLink {
 	public static class MSG_HIL_STATE_QUATERNION extends Message {
 	
 		private long time_usec; // Timestamp (microseconds since UNIX epoch or microseconds since system boot)
-		private float attitude_quaternion[] = new float[4]; // Vehicle attitude expressed as normalized quaternion in w, x, y, z order (with 1 0 0 0 being the null-rotation)
+		private float[] attitude_quaternion = new float[4]; // Vehicle attitude expressed as normalized quaternion in w, x, y, z order (with 1 0 0 0 being the null-rotation)
 		private float rollspeed; // Body frame roll / phi angular speed (rad/s)
 		private float pitchspeed; // Body frame pitch / theta angular speed (rad/s)
 		private float yawspeed; // Body frame yaw / psi angular speed (rad/s)
@@ -6193,6 +7531,10 @@ public class MAVLink {
 		private int yacc; // Y acceleration (mg)
 		private int zacc; // Z acceleration (mg)
 	
+		public MSG_HIL_STATE_QUATERNION () {
+			super("HIL_STATE_QUATERNION", MSG_ID_HIL_STATE_QUATERNION);
+		}
+
 		public MSG_HIL_STATE_QUATERNION (byte[] bytes) {
 			super(bytes, "HIL_STATE_QUATERNION", MSG_ID_HIL_STATE_QUATERNION);
 		}
@@ -6360,6 +7702,7 @@ public class MAVLink {
 			
 			time_usec = buffer.getLong(); // uint64_t
   			for(int c=0; c<4; ++c) {
+				attitude_quaternion [c] = buffer.getFloat(); // float[4]
  			}
 			
  			rollspeed = buffer.getFloat(); // float
@@ -6383,6 +7726,7 @@ public class MAVLink {
 			
 			buffer.putLong(time_usec); // uint64_t
   			for(int c=0; c<4; ++c) {
+				buffer.putFloat(attitude_quaternion [c]); // float[4]
  			}
 			
  			buffer.putFloat(rollspeed); // float
@@ -6423,6 +7767,597 @@ public class MAVLink {
 			"zacc = " + zacc + ",  }";
 		}
 	}
+	public static class MSG_IMAGE_AVAILABLE extends Message {
+	
+		private long cam_id; // Camera id
+		private long timestamp; // Timestamp
+		private long valid_until; // Until which timestamp this buffer will stay valid
+		private long img_seq; // The image sequence number
+		private long img_buf_index; // Position of the image in the buffer, starts with 0
+		private long key; // Shared memory area key
+		private long exposure; // Exposure time, in microseconds
+		private float gain; // Camera gain
+		private float roll; // Roll angle in rad
+		private float pitch; // Pitch angle in rad
+		private float yaw; // Yaw angle in rad
+		private float local_z; // Local frame Z coordinate (height over ground)
+		private float lat; // GPS X coordinate
+		private float lon; // GPS Y coordinate
+		private float alt; // Global frame altitude
+		private float ground_x; // Ground truth X
+		private float ground_y; // Ground truth Y
+		private float ground_z; // Ground truth Z
+		private int width; // Image width
+		private int height; // Image height
+		private int depth; // Image depth
+		private int cam_no; // Camera # (starts with 0)
+		private int channels; // Image channels
+	
+		public MSG_IMAGE_AVAILABLE () {
+			super("IMAGE_AVAILABLE", MSG_ID_IMAGE_AVAILABLE);
+		}
+
+		public MSG_IMAGE_AVAILABLE (byte[] bytes) {
+			super(bytes, "IMAGE_AVAILABLE", MSG_ID_IMAGE_AVAILABLE);
+		}
+	
+		public MSG_IMAGE_AVAILABLE (short systemId, short componentId, long cam_id  , long timestamp  , long valid_until  , long img_seq  , long img_buf_index  , long key  , long exposure  , float gain  , float roll  , float pitch  , float yaw  , float local_z  , float lat  , float lon  , float alt  , float ground_x  , float ground_y  , float ground_z  , int width  , int height  , int depth  , int cam_no  , int channels  ) {
+			super(systemId, componentId);
+			this.cam_id = cam_id;
+			this.timestamp = timestamp;
+			this.valid_until = valid_until;
+			this.img_seq = img_seq;
+			this.img_buf_index = img_buf_index;
+			this.key = key;
+			this.exposure = exposure;
+			this.gain = gain;
+			this.roll = roll;
+			this.pitch = pitch;
+			this.yaw = yaw;
+			this.local_z = local_z;
+			this.lat = lat;
+			this.lon = lon;
+			this.alt = alt;
+			this.ground_x = ground_x;
+			this.ground_y = ground_y;
+			this.ground_z = ground_z;
+			this.width = width;
+			this.height = height;
+			this.depth = depth;
+			this.cam_no = cam_no;
+			this.channels = channels;
+		}
+
+		@Override
+		public int getLength() {
+			return 260;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 224;
+		}
+	
+		public long getCam_id() {
+			return cam_id;
+		}
+		
+		public void setCam_id(long cam_id) {
+			this.cam_id = cam_id;
+		}
+		
+		public long getTimestamp() {
+			return timestamp;
+		}
+		
+		public void setTimestamp(long timestamp) {
+			this.timestamp = timestamp;
+		}
+		
+		public long getValid_until() {
+			return valid_until;
+		}
+		
+		public void setValid_until(long valid_until) {
+			this.valid_until = valid_until;
+		}
+		
+		public long getImg_seq() {
+			return img_seq;
+		}
+		
+		public void setImg_seq(long img_seq) {
+			this.img_seq = img_seq;
+		}
+		
+		public long getImg_buf_index() {
+			return img_buf_index;
+		}
+		
+		public void setImg_buf_index(long img_buf_index) {
+			this.img_buf_index = img_buf_index;
+		}
+		
+		public long getKey() {
+			return key;
+		}
+		
+		public void setKey(long key) {
+			this.key = key;
+		}
+		
+		public long getExposure() {
+			return exposure;
+		}
+		
+		public void setExposure(long exposure) {
+			this.exposure = exposure;
+		}
+		
+		public float getGain() {
+			return gain;
+		}
+		
+		public void setGain(float gain) {
+			this.gain = gain;
+		}
+		
+		public float getRoll() {
+			return roll;
+		}
+		
+		public void setRoll(float roll) {
+			this.roll = roll;
+		}
+		
+		public float getPitch() {
+			return pitch;
+		}
+		
+		public void setPitch(float pitch) {
+			this.pitch = pitch;
+		}
+		
+		public float getYaw() {
+			return yaw;
+		}
+		
+		public void setYaw(float yaw) {
+			this.yaw = yaw;
+		}
+		
+		public float getLocal_z() {
+			return local_z;
+		}
+		
+		public void setLocal_z(float local_z) {
+			this.local_z = local_z;
+		}
+		
+		public float getLat() {
+			return lat;
+		}
+		
+		public void setLat(float lat) {
+			this.lat = lat;
+		}
+		
+		public float getLon() {
+			return lon;
+		}
+		
+		public void setLon(float lon) {
+			this.lon = lon;
+		}
+		
+		public float getAlt() {
+			return alt;
+		}
+		
+		public void setAlt(float alt) {
+			this.alt = alt;
+		}
+		
+		public float getGround_x() {
+			return ground_x;
+		}
+		
+		public void setGround_x(float ground_x) {
+			this.ground_x = ground_x;
+		}
+		
+		public float getGround_y() {
+			return ground_y;
+		}
+		
+		public void setGround_y(float ground_y) {
+			this.ground_y = ground_y;
+		}
+		
+		public float getGround_z() {
+			return ground_z;
+		}
+		
+		public void setGround_z(float ground_z) {
+			this.ground_z = ground_z;
+		}
+		
+		public int getWidth() {
+			return width;
+		}
+		
+		public void setWidth(int width) {
+			this.width = width;
+		}
+		
+		public int getHeight() {
+			return height;
+		}
+		
+		public void setHeight(int height) {
+			this.height = height;
+		}
+		
+		public int getDepth() {
+			return depth;
+		}
+		
+		public void setDepth(int depth) {
+			this.depth = depth;
+		}
+		
+		public int getCam_no() {
+			return cam_no;
+		}
+		
+		public void setCam_no(int cam_no) {
+			this.cam_no = cam_no;
+		}
+		
+		public int getChannels() {
+			return channels;
+		}
+		
+		public void setChannels(int channels) {
+			this.channels = channels;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			cam_id = buffer.getLong(); // uint64_t
+  			timestamp = buffer.getLong(); // uint64_t
+  			valid_until = buffer.getLong(); // uint64_t
+  			img_seq = buffer.getInt() & 0xffffffff; // uint32_t
+  			img_buf_index = buffer.getInt() & 0xffffffff; // uint32_t
+  			key = buffer.getInt() & 0xffffffff; // uint32_t
+  			exposure = buffer.getInt() & 0xffffffff; // uint32_t
+  			gain = buffer.getFloat(); // float
+  			roll = buffer.getFloat(); // float
+  			pitch = buffer.getFloat(); // float
+  			yaw = buffer.getFloat(); // float
+  			local_z = buffer.getFloat(); // float
+  			lat = buffer.getFloat(); // float
+  			lon = buffer.getFloat(); // float
+  			alt = buffer.getFloat(); // float
+  			ground_x = buffer.getFloat(); // float
+  			ground_y = buffer.getFloat(); // float
+  			ground_z = buffer.getFloat(); // float
+  			width = buffer.getShort() & 0xffff; // uint16_t
+  			height = buffer.getShort() & 0xffff; // uint16_t
+  			depth = buffer.getShort() & 0xffff; // uint16_t
+  			cam_no = (int)buffer.get() & 0xff; // uint8_t
+  			channels = (int)buffer.get() & 0xff; // uint8_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putLong(cam_id); // uint64_t
+  			buffer.putLong(timestamp); // uint64_t
+  			buffer.putLong(valid_until); // uint64_t
+  			buffer.putInt((int)(img_seq & 0xffffffff)); // uint32_t
+  			buffer.putInt((int)(img_buf_index & 0xffffffff)); // uint32_t
+  			buffer.putInt((int)(key & 0xffffffff)); // uint32_t
+  			buffer.putInt((int)(exposure & 0xffffffff)); // uint32_t
+  			buffer.putFloat(gain); // float
+  			buffer.putFloat(roll); // float
+  			buffer.putFloat(pitch); // float
+  			buffer.putFloat(yaw); // float
+  			buffer.putFloat(local_z); // float
+  			buffer.putFloat(lat); // float
+  			buffer.putFloat(lon); // float
+  			buffer.putFloat(alt); // float
+  			buffer.putFloat(ground_x); // float
+  			buffer.putFloat(ground_y); // float
+  			buffer.putFloat(ground_z); // float
+  			buffer.putShort((short)(width & 0xffff)); // uint16_t
+  			buffer.putShort((short)(height & 0xffff)); // uint16_t
+  			buffer.putShort((short)(depth & 0xffff)); // uint16_t
+  			buffer.put((byte)(cam_no & 0xff)); // uint8_t
+  			buffer.put((byte)(channels & 0xff)); // uint8_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_IMAGE_AVAILABLE { " + 
+			"cam_id = " + cam_id + ", " + 
+			"timestamp = " + timestamp + ", " + 
+			"valid_until = " + valid_until + ", " + 
+			"img_seq = " + img_seq + ", " + 
+			"img_buf_index = " + img_buf_index + ", " + 
+			"key = " + key + ", " + 
+			"exposure = " + exposure + ", " + 
+			"gain = " + gain + ", " + 
+			"roll = " + roll + ", " + 
+			"pitch = " + pitch + ", " + 
+			"yaw = " + yaw + ", " + 
+			"local_z = " + local_z + ", " + 
+			"lat = " + lat + ", " + 
+			"lon = " + lon + ", " + 
+			"alt = " + alt + ", " + 
+			"ground_x = " + ground_x + ", " + 
+			"ground_y = " + ground_y + ", " + 
+			"ground_z = " + ground_z + ", " + 
+			"width = " + width + ", " + 
+			"height = " + height + ", " + 
+			"depth = " + depth + ", " + 
+			"cam_no = " + cam_no + ", " + 
+			"channels = " + channels + ",  }";
+		}
+	}
+	public static class MSG_IMAGE_TRIGGERED extends Message {
+	
+		private long timestamp; // Timestamp
+		private long seq; // IMU seq
+		private float roll; // Roll angle in rad
+		private float pitch; // Pitch angle in rad
+		private float yaw; // Yaw angle in rad
+		private float local_z; // Local frame Z coordinate (height over ground)
+		private float lat; // GPS X coordinate
+		private float lon; // GPS Y coordinate
+		private float alt; // Global frame altitude
+		private float ground_x; // Ground truth X
+		private float ground_y; // Ground truth Y
+		private float ground_z; // Ground truth Z
+	
+		public MSG_IMAGE_TRIGGERED () {
+			super("IMAGE_TRIGGERED", MSG_ID_IMAGE_TRIGGERED);
+		}
+
+		public MSG_IMAGE_TRIGGERED (byte[] bytes) {
+			super(bytes, "IMAGE_TRIGGERED", MSG_ID_IMAGE_TRIGGERED);
+		}
+	
+		public MSG_IMAGE_TRIGGERED (short systemId, short componentId, long timestamp  , long seq  , float roll  , float pitch  , float yaw  , float local_z  , float lat  , float lon  , float alt  , float ground_x  , float ground_y  , float ground_z  ) {
+			super(systemId, componentId);
+			this.timestamp = timestamp;
+			this.seq = seq;
+			this.roll = roll;
+			this.pitch = pitch;
+			this.yaw = yaw;
+			this.local_z = local_z;
+			this.lat = lat;
+			this.lon = lon;
+			this.alt = alt;
+			this.ground_x = ground_x;
+			this.ground_y = ground_y;
+			this.ground_z = ground_z;
+		}
+
+		@Override
+		public int getLength() {
+			return 108;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 86;
+		}
+	
+		public long getTimestamp() {
+			return timestamp;
+		}
+		
+		public void setTimestamp(long timestamp) {
+			this.timestamp = timestamp;
+		}
+		
+		public long getSeq() {
+			return seq;
+		}
+		
+		public void setSeq(long seq) {
+			this.seq = seq;
+		}
+		
+		public float getRoll() {
+			return roll;
+		}
+		
+		public void setRoll(float roll) {
+			this.roll = roll;
+		}
+		
+		public float getPitch() {
+			return pitch;
+		}
+		
+		public void setPitch(float pitch) {
+			this.pitch = pitch;
+		}
+		
+		public float getYaw() {
+			return yaw;
+		}
+		
+		public void setYaw(float yaw) {
+			this.yaw = yaw;
+		}
+		
+		public float getLocal_z() {
+			return local_z;
+		}
+		
+		public void setLocal_z(float local_z) {
+			this.local_z = local_z;
+		}
+		
+		public float getLat() {
+			return lat;
+		}
+		
+		public void setLat(float lat) {
+			this.lat = lat;
+		}
+		
+		public float getLon() {
+			return lon;
+		}
+		
+		public void setLon(float lon) {
+			this.lon = lon;
+		}
+		
+		public float getAlt() {
+			return alt;
+		}
+		
+		public void setAlt(float alt) {
+			this.alt = alt;
+		}
+		
+		public float getGround_x() {
+			return ground_x;
+		}
+		
+		public void setGround_x(float ground_x) {
+			this.ground_x = ground_x;
+		}
+		
+		public float getGround_y() {
+			return ground_y;
+		}
+		
+		public void setGround_y(float ground_y) {
+			this.ground_y = ground_y;
+		}
+		
+		public float getGround_z() {
+			return ground_z;
+		}
+		
+		public void setGround_z(float ground_z) {
+			this.ground_z = ground_z;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			timestamp = buffer.getLong(); // uint64_t
+  			seq = buffer.getInt() & 0xffffffff; // uint32_t
+  			roll = buffer.getFloat(); // float
+  			pitch = buffer.getFloat(); // float
+  			yaw = buffer.getFloat(); // float
+  			local_z = buffer.getFloat(); // float
+  			lat = buffer.getFloat(); // float
+  			lon = buffer.getFloat(); // float
+  			alt = buffer.getFloat(); // float
+  			ground_x = buffer.getFloat(); // float
+  			ground_y = buffer.getFloat(); // float
+  			ground_z = buffer.getFloat(); // float
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putLong(timestamp); // uint64_t
+  			buffer.putInt((int)(seq & 0xffffffff)); // uint32_t
+  			buffer.putFloat(roll); // float
+  			buffer.putFloat(pitch); // float
+  			buffer.putFloat(yaw); // float
+  			buffer.putFloat(local_z); // float
+  			buffer.putFloat(lat); // float
+  			buffer.putFloat(lon); // float
+  			buffer.putFloat(alt); // float
+  			buffer.putFloat(ground_x); // float
+  			buffer.putFloat(ground_y); // float
+  			buffer.putFloat(ground_z); // float
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_IMAGE_TRIGGERED { " + 
+			"timestamp = " + timestamp + ", " + 
+			"seq = " + seq + ", " + 
+			"roll = " + roll + ", " + 
+			"pitch = " + pitch + ", " + 
+			"yaw = " + yaw + ", " + 
+			"local_z = " + local_z + ", " + 
+			"lat = " + lat + ", " + 
+			"lon = " + lon + ", " + 
+			"alt = " + alt + ", " + 
+			"ground_x = " + ground_x + ", " + 
+			"ground_y = " + ground_y + ", " + 
+			"ground_z = " + ground_z + ",  }";
+		}
+	}
+	public static class MSG_IMAGE_TRIGGER_CONTROL extends Message {
+	
+		private int enable; // 0 to disable, 1 to enable
+	
+		public MSG_IMAGE_TRIGGER_CONTROL () {
+			super("IMAGE_TRIGGER_CONTROL", MSG_ID_IMAGE_TRIGGER_CONTROL);
+		}
+
+		public MSG_IMAGE_TRIGGER_CONTROL (byte[] bytes) {
+			super(bytes, "IMAGE_TRIGGER_CONTROL", MSG_ID_IMAGE_TRIGGER_CONTROL);
+		}
+	
+		public MSG_IMAGE_TRIGGER_CONTROL (short systemId, short componentId, int enable  ) {
+			super(systemId, componentId);
+			this.enable = enable;
+		}
+
+		@Override
+		public int getLength() {
+			return 1;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 95;
+		}
+	
+		public int getEnable() {
+			return enable;
+		}
+		
+		public void setEnable(int enable) {
+			this.enable = enable;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			enable = (int)buffer.get() & 0xff; // uint8_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.put((byte)(enable & 0xff)); // uint8_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_IMAGE_TRIGGER_CONTROL { " + 
+			"enable = " + enable + ",  }";
+		}
+	}
 	/*
 	 * The filtered local position (e.g. fused computer vision and accelerometers). Coordinate frame is right-handed, Z-axis down (aeronautical frame, NED / north-east-down convention)
 	 */
@@ -6436,6 +8371,10 @@ public class MAVLink {
 		private float vy; // Y Speed
 		private float vz; // Z Speed
 	
+		public MSG_LOCAL_POSITION_NED () {
+			super("LOCAL_POSITION_NED", MSG_ID_LOCAL_POSITION_NED);
+		}
+
 		public MSG_LOCAL_POSITION_NED (byte[] bytes) {
 			super(bytes, "LOCAL_POSITION_NED", MSG_ID_LOCAL_POSITION_NED);
 		}
@@ -6560,21 +8499,28 @@ public class MAVLink {
 	public static class MSG_LOCAL_POSITION_NED_COV extends Message {
 	
 		private long time_utc; // Timestamp (microseconds since UNIX epoch) in UTC. 0 for unknown. Commonly filled by the precision time source of a GPS receiver.
-		private long time_boot_ms; // Timestamp (milliseconds since system boot)
+		private long time_boot_ms; // Timestamp (milliseconds since system boot). 0 for system without monotonic timestamp
 		private float x; // X Position
 		private float y; // Y Position
 		private float z; // Z Position
-		private float vx; // X Speed
-		private float vy; // Y Speed
-		private float vz; // Z Speed
-		private float covariance[] = new float[36]; // Covariance matrix (first six entries are the first ROW, next six entries are the second row, etc.)
+		private float vx; // X Speed (m/s)
+		private float vy; // Y Speed (m/s)
+		private float vz; // Z Speed (m/s)
+		private float ax; // X Acceleration (m/s^2)
+		private float ay; // Y Acceleration (m/s^2)
+		private float az; // Z Acceleration (m/s^2)
+		private float[] covariance = new float[45]; // Covariance matrix upper right triangular (first nine entries are the first ROW, next eight entries are the second row, etc.)
 		private int estimator_type; // Class id of the estimator this estimate originated from.
 	
+		public MSG_LOCAL_POSITION_NED_COV () {
+			super("LOCAL_POSITION_NED_COV", MSG_ID_LOCAL_POSITION_NED_COV);
+		}
+
 		public MSG_LOCAL_POSITION_NED_COV (byte[] bytes) {
 			super(bytes, "LOCAL_POSITION_NED_COV", MSG_ID_LOCAL_POSITION_NED_COV);
 		}
 	
-		public MSG_LOCAL_POSITION_NED_COV (short systemId, short componentId, long time_utc  , long time_boot_ms  , float x  , float y  , float z  , float vx  , float vy  , float vz  , float covariance [] , int estimator_type  ) {
+		public MSG_LOCAL_POSITION_NED_COV (short systemId, short componentId, long time_utc  , long time_boot_ms  , float x  , float y  , float z  , float vx  , float vy  , float vz  , float ax  , float ay  , float az  , float covariance [] , int estimator_type  ) {
 			super(systemId, componentId);
 			this.time_utc = time_utc;
 			this.time_boot_ms = time_boot_ms;
@@ -6584,18 +8530,21 @@ public class MAVLink {
 			this.vx = vx;
 			this.vy = vy;
 			this.vz = vz;
+			this.ax = ax;
+			this.ay = ay;
+			this.az = az;
 			this.covariance = covariance;
 			this.estimator_type = estimator_type;
 		}
 
 		@Override
 		public int getLength() {
-			return 97;
+			return 109;
 		}		
 	
 		@Override
 		public int getCRCExtra() {
-			return 82;
+			return 59;
 		}
 	
 		public long getTime_utc() {
@@ -6662,6 +8611,30 @@ public class MAVLink {
 			this.vz = vz;
 		}
 		
+		public float getAx() {
+			return ax;
+		}
+		
+		public void setAx(float ax) {
+			this.ax = ax;
+		}
+		
+		public float getAy() {
+			return ay;
+		}
+		
+		public void setAy(float ay) {
+			this.ay = ay;
+		}
+		
+		public float getAz() {
+			return az;
+		}
+		
+		public void setAz(float az) {
+			this.az = az;
+		}
+		
 		public float[] getCovariance() {
 			return covariance;
 		}
@@ -6689,7 +8662,11 @@ public class MAVLink {
   			vx = buffer.getFloat(); // float
   			vy = buffer.getFloat(); // float
   			vz = buffer.getFloat(); // float
-  			for(int c=0; c<36; ++c) {
+  			ax = buffer.getFloat(); // float
+  			ay = buffer.getFloat(); // float
+  			az = buffer.getFloat(); // float
+  			for(int c=0; c<45; ++c) {
+				covariance [c] = buffer.getFloat(); // float[45]
  			}
 			
  			estimator_type = (int)buffer.get() & 0xff; // uint8_t
@@ -6706,7 +8683,11 @@ public class MAVLink {
   			buffer.putFloat(vx); // float
   			buffer.putFloat(vy); // float
   			buffer.putFloat(vz); // float
-  			for(int c=0; c<36; ++c) {
+  			buffer.putFloat(ax); // float
+  			buffer.putFloat(ay); // float
+  			buffer.putFloat(az); // float
+  			for(int c=0; c<45; ++c) {
+				buffer.putFloat(covariance [c]); // float[45]
  			}
 			
  			buffer.put((byte)(estimator_type & 0xff)); // uint8_t
@@ -6724,6 +8705,9 @@ public class MAVLink {
 			"vx = " + vx + ", " + 
 			"vy = " + vy + ", " + 
 			"vz = " + vz + ", " + 
+			"ax = " + ax + ", " + 
+			"ay = " + ay + ", " + 
+			"az = " + az + ", " + 
 			"covariance = " + covariance + ", " + 
 			"estimator_type = " + estimator_type + ",  }";
 		}
@@ -6741,6 +8725,10 @@ public class MAVLink {
 		private float pitch; // Pitch
 		private float yaw; // Yaw
 	
+		public MSG_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET () {
+			super("LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET", MSG_ID_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET);
+		}
+
 		public MSG_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET (byte[] bytes) {
 			super(bytes, "LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET", MSG_ID_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET);
 		}
@@ -6867,8 +8855,12 @@ public class MAVLink {
 		private long ofs; // Offset into the log
 		private int id; // Log id (from LOG_ENTRY reply)
 		private int count; // Number of bytes (zero for end of log)
-		private int data[] = new int[90]; // log data
+		private int[] data = new int[90]; // log data
 	
+		public MSG_LOG_DATA () {
+			super("LOG_DATA", MSG_ID_LOG_DATA);
+		}
+
 		public MSG_LOG_DATA (byte[] bytes) {
 			super(bytes, "LOG_DATA", MSG_ID_LOG_DATA);
 		}
@@ -6968,6 +8960,10 @@ public class MAVLink {
 		private int num_logs; // Total number of logs
 		private int last_log_num; // High log number
 	
+		public MSG_LOG_ENTRY () {
+			super("LOG_ENTRY", MSG_ID_LOG_ENTRY);
+		}
+
 		public MSG_LOG_ENTRY (byte[] bytes) {
 			super(bytes, "LOG_ENTRY", MSG_ID_LOG_ENTRY);
 		}
@@ -7070,6 +9066,10 @@ public class MAVLink {
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
+		public MSG_LOG_ERASE () {
+			super("LOG_ERASE", MSG_ID_LOG_ERASE);
+		}
+
 		public MSG_LOG_ERASE (byte[] bytes) {
 			super(bytes, "LOG_ERASE", MSG_ID_LOG_ERASE);
 		}
@@ -7139,6 +9139,10 @@ public class MAVLink {
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
+		public MSG_LOG_REQUEST_DATA () {
+			super("LOG_REQUEST_DATA", MSG_ID_LOG_REQUEST_DATA);
+		}
+
 		public MSG_LOG_REQUEST_DATA (byte[] bytes) {
 			super(bytes, "LOG_REQUEST_DATA", MSG_ID_LOG_REQUEST_DATA);
 		}
@@ -7241,6 +9245,10 @@ public class MAVLink {
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
+		public MSG_LOG_REQUEST_END () {
+			super("LOG_REQUEST_END", MSG_ID_LOG_REQUEST_END);
+		}
+
 		public MSG_LOG_REQUEST_END (byte[] bytes) {
 			super(bytes, "LOG_REQUEST_END", MSG_ID_LOG_REQUEST_END);
 		}
@@ -7309,6 +9317,10 @@ public class MAVLink {
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
+		public MSG_LOG_REQUEST_LIST () {
+			super("LOG_REQUEST_LIST", MSG_ID_LOG_REQUEST_LIST);
+		}
+
 		public MSG_LOG_REQUEST_LIST (byte[] bytes) {
 			super(bytes, "LOG_REQUEST_LIST", MSG_ID_LOG_REQUEST_LIST);
 		}
@@ -7403,6 +9415,10 @@ public class MAVLink {
 		private int buttons; // A bitfield corresponding to the joystick buttons' current state, 1 for pressed, 0 for released. The lowest bit corresponds to Button 1.
 		private int target; // The system to be controlled.
 	
+		public MSG_MANUAL_CONTROL () {
+			super("MANUAL_CONTROL", MSG_ID_MANUAL_CONTROL);
+		}
+
 		public MSG_MANUAL_CONTROL (byte[] bytes) {
 			super(bytes, "MANUAL_CONTROL", MSG_ID_MANUAL_CONTROL);
 		}
@@ -7522,6 +9538,10 @@ public class MAVLink {
 		private int mode_switch; // Flight mode switch position, 0.. 255
 		private int manual_override_switch; // Override mode switch position, 0.. 255
 	
+		public MSG_MANUAL_SETPOINT () {
+			super("MANUAL_SETPOINT", MSG_ID_MANUAL_SETPOINT);
+		}
+
 		public MSG_MANUAL_SETPOINT (byte[] bytes) {
 			super(bytes, "MANUAL_SETPOINT", MSG_ID_MANUAL_SETPOINT);
 		}
@@ -7640,6 +9660,138 @@ public class MAVLink {
 			"manual_override_switch = " + manual_override_switch + ",  }";
 		}
 	}
+	public static class MSG_MARKER extends Message {
+	
+		private float x; // x position
+		private float y; // y position
+		private float z; // z position
+		private float roll; // roll orientation
+		private float pitch; // pitch orientation
+		private float yaw; // yaw orientation
+		private int id; // ID
+	
+		public MSG_MARKER () {
+			super("MARKER", MSG_ID_MARKER);
+		}
+
+		public MSG_MARKER (byte[] bytes) {
+			super(bytes, "MARKER", MSG_ID_MARKER);
+		}
+	
+		public MSG_MARKER (short systemId, short componentId, float x  , float y  , float z  , float roll  , float pitch  , float yaw  , int id  ) {
+			super(systemId, componentId);
+			this.x = x;
+			this.y = y;
+			this.z = z;
+			this.roll = roll;
+			this.pitch = pitch;
+			this.yaw = yaw;
+			this.id = id;
+		}
+
+		@Override
+		public int getLength() {
+			return 26;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 249;
+		}
+	
+		public float getX() {
+			return x;
+		}
+		
+		public void setX(float x) {
+			this.x = x;
+		}
+		
+		public float getY() {
+			return y;
+		}
+		
+		public void setY(float y) {
+			this.y = y;
+		}
+		
+		public float getZ() {
+			return z;
+		}
+		
+		public void setZ(float z) {
+			this.z = z;
+		}
+		
+		public float getRoll() {
+			return roll;
+		}
+		
+		public void setRoll(float roll) {
+			this.roll = roll;
+		}
+		
+		public float getPitch() {
+			return pitch;
+		}
+		
+		public void setPitch(float pitch) {
+			this.pitch = pitch;
+		}
+		
+		public float getYaw() {
+			return yaw;
+		}
+		
+		public void setYaw(float yaw) {
+			this.yaw = yaw;
+		}
+		
+		public int getId() {
+			return id;
+		}
+		
+		public void setId(int id) {
+			this.id = id;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			x = buffer.getFloat(); // float
+  			y = buffer.getFloat(); // float
+  			z = buffer.getFloat(); // float
+  			roll = buffer.getFloat(); // float
+  			pitch = buffer.getFloat(); // float
+  			yaw = buffer.getFloat(); // float
+  			id = buffer.getShort() & 0xffff; // uint16_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putFloat(x); // float
+  			buffer.putFloat(y); // float
+  			buffer.putFloat(z); // float
+  			buffer.putFloat(roll); // float
+  			buffer.putFloat(pitch); // float
+  			buffer.putFloat(yaw); // float
+  			buffer.putShort((short)(id & 0xffff)); // uint16_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_MARKER { " + 
+			"x = " + x + ", " + 
+			"y = " + y + ", " + 
+			"z = " + z + ", " + 
+			"roll = " + roll + ", " + 
+			"pitch = " + pitch + ", " + 
+			"yaw = " + yaw + ", " + 
+			"id = " + id + ",  }";
+		}
+	}
 	/*
 	 * Send raw controller memory. The use of this message is discouraged for normal packets, but a quite efficient way for testing new messages and getting experimental debug output.
 	 */
@@ -7648,8 +9800,12 @@ public class MAVLink {
 		private int address; // Starting address of the debug variables
 		private int ver; // Version code of the type variable. 0=unknown, type ignored and assumed int16_t. 1=as below
 		private int type; // Type code of the memory variables. for ver = 1: 0=16 x int16_t, 1=16 x uint16_t, 2=16 x Q15, 3=16 x 1Q14
-		private int value[] = new int[32]; // Memory contents at specified address
+		private int[] value = new int[32]; // Memory contents at specified address
 	
+		public MSG_MEMORY_VECT () {
+			super("MEMORY_VECT", MSG_ID_MEMORY_VECT);
+		}
+
 		public MSG_MEMORY_VECT (byte[] bytes) {
 			super(bytes, "MEMORY_VECT", MSG_ID_MEMORY_VECT);
 		}
@@ -7747,6 +9903,10 @@ public class MAVLink {
 		private int target_component; // Component ID
 		private int type; // See MAV_MISSION_RESULT enum
 	
+		public MSG_MISSION_ACK () {
+			super("MISSION_ACK", MSG_ID_MISSION_ACK);
+		}
+
 		public MSG_MISSION_ACK (byte[] bytes) {
 			super(bytes, "MISSION_ACK", MSG_ID_MISSION_ACK);
 		}
@@ -7825,6 +9985,10 @@ public class MAVLink {
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
+		public MSG_MISSION_CLEAR_ALL () {
+			super("MISSION_CLEAR_ALL", MSG_ID_MISSION_CLEAR_ALL);
+		}
+
 		public MSG_MISSION_CLEAR_ALL (byte[] bytes) {
 			super(bytes, "MISSION_CLEAR_ALL", MSG_ID_MISSION_CLEAR_ALL);
 		}
@@ -7892,6 +10056,10 @@ public class MAVLink {
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
+		public MSG_MISSION_COUNT () {
+			super("MISSION_COUNT", MSG_ID_MISSION_COUNT);
+		}
+
 		public MSG_MISSION_COUNT (byte[] bytes) {
 			super(bytes, "MISSION_COUNT", MSG_ID_MISSION_COUNT);
 		}
@@ -7969,6 +10137,10 @@ public class MAVLink {
 	
 		private int seq; // Sequence
 	
+		public MSG_MISSION_CURRENT () {
+			super("MISSION_CURRENT", MSG_ID_MISSION_CURRENT);
+		}
+
 		public MSG_MISSION_CURRENT (byte[] bytes) {
 			super(bytes, "MISSION_CURRENT", MSG_ID_MISSION_CURRENT);
 		}
@@ -8036,6 +10208,10 @@ public class MAVLink {
 		private int current; // false:0, true:1
 		private int autocontinue; // autocontinue to next wp
 	
+		public MSG_MISSION_ITEM () {
+			super("MISSION_ITEM", MSG_ID_MISSION_ITEM);
+		}
+
 		public MSG_MISSION_ITEM (byte[] bytes) {
 			super(bytes, "MISSION_ITEM", MSG_ID_MISSION_ITEM);
 		}
@@ -8259,6 +10435,10 @@ public class MAVLink {
 		private int current; // false:0, true:1
 		private int autocontinue; // autocontinue to next wp
 	
+		public MSG_MISSION_ITEM_INT () {
+			super("MISSION_ITEM_INT", MSG_ID_MISSION_ITEM_INT);
+		}
+
 		public MSG_MISSION_ITEM_INT (byte[] bytes) {
 			super(bytes, "MISSION_ITEM_INT", MSG_ID_MISSION_ITEM_INT);
 		}
@@ -8468,6 +10648,10 @@ public class MAVLink {
 	
 		private int seq; // Sequence
 	
+		public MSG_MISSION_ITEM_REACHED () {
+			super("MISSION_ITEM_REACHED", MSG_ID_MISSION_ITEM_REACHED);
+		}
+
 		public MSG_MISSION_ITEM_REACHED (byte[] bytes) {
 			super(bytes, "MISSION_ITEM_REACHED", MSG_ID_MISSION_ITEM_REACHED);
 		}
@@ -8523,6 +10707,10 @@ public class MAVLink {
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
+		public MSG_MISSION_REQUEST () {
+			super("MISSION_REQUEST", MSG_ID_MISSION_REQUEST);
+		}
+
 		public MSG_MISSION_REQUEST (byte[] bytes) {
 			super(bytes, "MISSION_REQUEST", MSG_ID_MISSION_REQUEST);
 		}
@@ -8601,6 +10789,10 @@ public class MAVLink {
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
+		public MSG_MISSION_REQUEST_LIST () {
+			super("MISSION_REQUEST_LIST", MSG_ID_MISSION_REQUEST_LIST);
+		}
+
 		public MSG_MISSION_REQUEST_LIST (byte[] bytes) {
 			super(bytes, "MISSION_REQUEST_LIST", MSG_ID_MISSION_REQUEST_LIST);
 		}
@@ -8669,6 +10861,10 @@ public class MAVLink {
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
+		public MSG_MISSION_REQUEST_PARTIAL_LIST () {
+			super("MISSION_REQUEST_PARTIAL_LIST", MSG_ID_MISSION_REQUEST_PARTIAL_LIST);
+		}
+
 		public MSG_MISSION_REQUEST_PARTIAL_LIST (byte[] bytes) {
 			super(bytes, "MISSION_REQUEST_PARTIAL_LIST", MSG_ID_MISSION_REQUEST_PARTIAL_LIST);
 		}
@@ -8760,6 +10956,10 @@ public class MAVLink {
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
+		public MSG_MISSION_SET_CURRENT () {
+			super("MISSION_SET_CURRENT", MSG_ID_MISSION_SET_CURRENT);
+		}
+
 		public MSG_MISSION_SET_CURRENT (byte[] bytes) {
 			super(bytes, "MISSION_SET_CURRENT", MSG_ID_MISSION_SET_CURRENT);
 		}
@@ -8840,6 +11040,10 @@ public class MAVLink {
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
+		public MSG_MISSION_WRITE_PARTIAL_LIST () {
+			super("MISSION_WRITE_PARTIAL_LIST", MSG_ID_MISSION_WRITE_PARTIAL_LIST);
+		}
+
 		public MSG_MISSION_WRITE_PARTIAL_LIST (byte[] bytes) {
 			super(bytes, "MISSION_WRITE_PARTIAL_LIST", MSG_ID_MISSION_WRITE_PARTIAL_LIST);
 		}
@@ -8929,8 +11133,12 @@ public class MAVLink {
 	
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private float value; // Floating point value
-		private char name[] = new char[10]; // Name of the debug variable
+		private char[] name = new char[10]; // Name of the debug variable
 	
+		public MSG_NAMED_VALUE_FLOAT () {
+			super("NAMED_VALUE_FLOAT", MSG_ID_NAMED_VALUE_FLOAT);
+		}
+
 		public MSG_NAMED_VALUE_FLOAT (byte[] bytes) {
 			super(bytes, "NAMED_VALUE_FLOAT", MSG_ID_NAMED_VALUE_FLOAT);
 		}
@@ -9014,8 +11222,12 @@ public class MAVLink {
 	
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private int value; // Signed integer value
-		private char name[] = new char[10]; // Name of the debug variable
+		private char[] name = new char[10]; // Name of the debug variable
 	
+		public MSG_NAMED_VALUE_INT () {
+			super("NAMED_VALUE_INT", MSG_ID_NAMED_VALUE_INT);
+		}
+
 		public MSG_NAMED_VALUE_INT (byte[] bytes) {
 			super(bytes, "NAMED_VALUE_INT", MSG_ID_NAMED_VALUE_INT);
 		}
@@ -9106,6 +11318,10 @@ public class MAVLink {
 		private int target_bearing; // Bearing to current MISSION/target in degrees
 		private int wp_dist; // Distance to active MISSION in meters
 	
+		public MSG_NAV_CONTROLLER_OUTPUT () {
+			super("NAV_CONTROLLER_OUTPUT", MSG_ID_NAV_CONTROLLER_OUTPUT);
+		}
+
 		public MSG_NAV_CONTROLLER_OUTPUT (byte[] bytes) {
 			super(bytes, "NAV_CONTROLLER_OUTPUT", MSG_ID_NAV_CONTROLLER_OUTPUT);
 		}
@@ -9236,134 +11452,227 @@ public class MAVLink {
 			"wp_dist = " + wp_dist + ",  }";
 		}
 	}
-	/*
-	 * Optical flow from an omnidirectional flow sensor (e.g. PX4FLOW with wide angle lens)
-	 */
-	public static class MSG_OMNIDIRECTIONAL_FLOW extends Message {
+	public static class MSG_ONBOARD_HEALTH extends Message {
 	
-		private long time_usec; // Timestamp (microseconds, synced to UNIX time or since system boot)
-		private float front_distance_m; // Front distance in meters. Positive value (including zero): distance known. Negative value: Unknown distance
-		private int left[] = new int[10]; // Flow in deci pixels (1 = 0.1 pixel) on left hemisphere
-		private int right[] = new int[10]; // Flow in deci pixels (1 = 0.1 pixel) on right hemisphere
-		private int sensor_id; // Sensor ID
-		private int quality; // Optical flow quality / confidence. 0: bad, 255: maximum quality
+		private long uptime; // Uptime of system
+		private float ram_total; // RAM size in GiB
+		private float swap_total; // Swap size in GiB
+		private float disk_total; // Disk total in GiB
+		private float temp; // Temperature
+		private float voltage; // Supply voltage V
+		private float network_load_in; // Network load inbound KiB/s
+		private float network_load_out; // Network load outbound in KiB/s 
+		private int cpu_freq; // CPU frequency
+		private int cpu_load; // CPU load in percent
+		private int ram_usage; // RAM usage in percent
+		private int swap_usage; // Swap usage in percent
+		private int disk_health; // Disk health (-1: N/A, 0: ERR, 1: RO, 2: RW)
+		private int disk_usage; // Disk usage in percent
 	
-		public MSG_OMNIDIRECTIONAL_FLOW (byte[] bytes) {
-			super(bytes, "OMNIDIRECTIONAL_FLOW", MSG_ID_OMNIDIRECTIONAL_FLOW);
+		public MSG_ONBOARD_HEALTH () {
+			super("ONBOARD_HEALTH", MSG_ID_ONBOARD_HEALTH);
+		}
+
+		public MSG_ONBOARD_HEALTH (byte[] bytes) {
+			super(bytes, "ONBOARD_HEALTH", MSG_ID_ONBOARD_HEALTH);
 		}
 	
-		public MSG_OMNIDIRECTIONAL_FLOW (short systemId, short componentId, long time_usec  , float front_distance_m  , int left [] , int right [] , int sensor_id  , int quality  ) {
+		public MSG_ONBOARD_HEALTH (short systemId, short componentId, long uptime  , float ram_total  , float swap_total  , float disk_total  , float temp  , float voltage  , float network_load_in  , float network_load_out  , int cpu_freq  , int cpu_load  , int ram_usage  , int swap_usage  , int disk_health  , int disk_usage  ) {
 			super(systemId, componentId);
-			this.time_usec = time_usec;
-			this.front_distance_m = front_distance_m;
-			this.left = left;
-			this.right = right;
-			this.sensor_id = sensor_id;
-			this.quality = quality;
+			this.uptime = uptime;
+			this.ram_total = ram_total;
+			this.swap_total = swap_total;
+			this.disk_total = disk_total;
+			this.temp = temp;
+			this.voltage = voltage;
+			this.network_load_in = network_load_in;
+			this.network_load_out = network_load_out;
+			this.cpu_freq = cpu_freq;
+			this.cpu_load = cpu_load;
+			this.ram_usage = ram_usage;
+			this.swap_usage = swap_usage;
+			this.disk_health = disk_health;
+			this.disk_usage = disk_usage;
 		}
 
 		@Override
 		public int getLength() {
-			return 74;
+			return 39;
 		}		
 	
 		@Override
 		public int getCRCExtra() {
-			return 211;
+			return 19;
 		}
 	
-		public long getTime_usec() {
-			return time_usec;
+		public long getUptime() {
+			return uptime;
 		}
 		
-		public void setTime_usec(long time_usec) {
-			this.time_usec = time_usec;
+		public void setUptime(long uptime) {
+			this.uptime = uptime;
 		}
 		
-		public float getFront_distance_m() {
-			return front_distance_m;
+		public float getRam_total() {
+			return ram_total;
 		}
 		
-		public void setFront_distance_m(float front_distance_m) {
-			this.front_distance_m = front_distance_m;
+		public void setRam_total(float ram_total) {
+			this.ram_total = ram_total;
 		}
 		
-		public int[] getLeft() {
-			return left;
+		public float getSwap_total() {
+			return swap_total;
 		}
 		
-		public void setLeft(int left[]) {
-			this.left = left;
+		public void setSwap_total(float swap_total) {
+			this.swap_total = swap_total;
 		}
 		
-		public int[] getRight() {
-			return right;
+		public float getDisk_total() {
+			return disk_total;
 		}
 		
-		public void setRight(int right[]) {
-			this.right = right;
+		public void setDisk_total(float disk_total) {
+			this.disk_total = disk_total;
 		}
 		
-		public int getSensor_id() {
-			return sensor_id;
+		public float getTemp() {
+			return temp;
 		}
 		
-		public void setSensor_id(int sensor_id) {
-			this.sensor_id = sensor_id;
+		public void setTemp(float temp) {
+			this.temp = temp;
 		}
 		
-		public int getQuality() {
-			return quality;
+		public float getVoltage() {
+			return voltage;
 		}
 		
-		public void setQuality(int quality) {
-			this.quality = quality;
+		public void setVoltage(float voltage) {
+			this.voltage = voltage;
+		}
+		
+		public float getNetwork_load_in() {
+			return network_load_in;
+		}
+		
+		public void setNetwork_load_in(float network_load_in) {
+			this.network_load_in = network_load_in;
+		}
+		
+		public float getNetwork_load_out() {
+			return network_load_out;
+		}
+		
+		public void setNetwork_load_out(float network_load_out) {
+			this.network_load_out = network_load_out;
+		}
+		
+		public int getCpu_freq() {
+			return cpu_freq;
+		}
+		
+		public void setCpu_freq(int cpu_freq) {
+			this.cpu_freq = cpu_freq;
+		}
+		
+		public int getCpu_load() {
+			return cpu_load;
+		}
+		
+		public void setCpu_load(int cpu_load) {
+			this.cpu_load = cpu_load;
+		}
+		
+		public int getRam_usage() {
+			return ram_usage;
+		}
+		
+		public void setRam_usage(int ram_usage) {
+			this.ram_usage = ram_usage;
+		}
+		
+		public int getSwap_usage() {
+			return swap_usage;
+		}
+		
+		public void setSwap_usage(int swap_usage) {
+			this.swap_usage = swap_usage;
+		}
+		
+		public int getDisk_health() {
+			return disk_health;
+		}
+		
+		public void setDisk_health(int disk_health) {
+			this.disk_health = disk_health;
+		}
+		
+		public int getDisk_usage() {
+			return disk_usage;
+		}
+		
+		public void setDisk_usage(int disk_usage) {
+			this.disk_usage = disk_usage;
 		}
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
 			
-			time_usec = buffer.getLong(); // uint64_t
-  			front_distance_m = buffer.getFloat(); // float
-  			for(int c=0; c<10; ++c) {
-				left [c] = buffer.getShort(); // int16_t[10]
- 			}
-			
- 			for(int c=0; c<10; ++c) {
-				right [c] = buffer.getShort(); // int16_t[10]
- 			}
-			
- 			sensor_id = (int)buffer.get() & 0xff; // uint8_t
-  			quality = (int)buffer.get() & 0xff; // uint8_t
+			uptime = buffer.getInt() & 0xffffffff; // uint32_t
+  			ram_total = buffer.getFloat(); // float
+  			swap_total = buffer.getFloat(); // float
+  			disk_total = buffer.getFloat(); // float
+  			temp = buffer.getFloat(); // float
+  			voltage = buffer.getFloat(); // float
+  			network_load_in = buffer.getFloat(); // float
+  			network_load_out = buffer.getFloat(); // float
+  			cpu_freq = buffer.getShort() & 0xffff; // uint16_t
+  			cpu_load = (int)buffer.get() & 0xff; // uint8_t
+  			ram_usage = (int)buffer.get() & 0xff; // uint8_t
+  			swap_usage = (int)buffer.get() & 0xff; // uint8_t
+  			disk_health = (int)buffer.get(); // int8_t
+  			disk_usage = (int)buffer.get() & 0xff; // uint8_t
    			return buffer;
 		}
 			
 		protected ByteBuffer encodePayload(ByteBuffer buffer) {
 			
-			buffer.putLong(time_usec); // uint64_t
-  			buffer.putFloat(front_distance_m); // float
-  			for(int c=0; c<10; ++c) {
-				buffer.putShort((short)(left [c]));
- 			}
-			
- 			for(int c=0; c<10; ++c) {
-				buffer.putShort((short)(right [c]));
- 			}
-			
- 			buffer.put((byte)(sensor_id & 0xff)); // uint8_t
-  			buffer.put((byte)(quality & 0xff)); // uint8_t
+			buffer.putInt((int)(uptime & 0xffffffff)); // uint32_t
+  			buffer.putFloat(ram_total); // float
+  			buffer.putFloat(swap_total); // float
+  			buffer.putFloat(disk_total); // float
+  			buffer.putFloat(temp); // float
+  			buffer.putFloat(voltage); // float
+  			buffer.putFloat(network_load_in); // float
+  			buffer.putFloat(network_load_out); // float
+  			buffer.putShort((short)(cpu_freq & 0xffff)); // uint16_t
+  			buffer.put((byte)(cpu_load & 0xff)); // uint8_t
+  			buffer.put((byte)(ram_usage & 0xff)); // uint8_t
+  			buffer.put((byte)(swap_usage & 0xff)); // uint8_t
+  			buffer.put((byte)(disk_health)); // int8_t
+  			buffer.put((byte)(disk_usage & 0xff)); // uint8_t
    			return buffer;
 		}
 		
 		@Override
 		public String toString() {
-			return "MSG_OMNIDIRECTIONAL_FLOW { " + 
-			"time_usec = " + time_usec + ", " + 
-			"front_distance_m = " + front_distance_m + ", " + 
-			"left = " + left + ", " + 
-			"right = " + right + ", " + 
-			"sensor_id = " + sensor_id + ", " + 
-			"quality = " + quality + ",  }";
+			return "MSG_ONBOARD_HEALTH { " + 
+			"uptime = " + uptime + ", " + 
+			"ram_total = " + ram_total + ", " + 
+			"swap_total = " + swap_total + ", " + 
+			"disk_total = " + disk_total + ", " + 
+			"temp = " + temp + ", " + 
+			"voltage = " + voltage + ", " + 
+			"network_load_in = " + network_load_in + ", " + 
+			"network_load_out = " + network_load_out + ", " + 
+			"cpu_freq = " + cpu_freq + ", " + 
+			"cpu_load = " + cpu_load + ", " + 
+			"ram_usage = " + ram_usage + ", " + 
+			"swap_usage = " + swap_usage + ", " + 
+			"disk_health = " + disk_health + ", " + 
+			"disk_usage = " + disk_usage + ",  }";
 		}
 	}
 	/*
@@ -9380,6 +11689,10 @@ public class MAVLink {
 		private int sensor_id; // Sensor ID
 		private int quality; // Optical flow quality / confidence. 0: bad, 255: maximum quality
 	
+		public MSG_OPTICAL_FLOW () {
+			super("OPTICAL_FLOW", MSG_ID_OPTICAL_FLOW);
+		}
+
 		public MSG_OPTICAL_FLOW (byte[] bytes) {
 			super(bytes, "OPTICAL_FLOW", MSG_ID_OPTICAL_FLOW);
 		}
@@ -9511,6 +11824,373 @@ public class MAVLink {
 		}
 	}
 	/*
+	 * Optical flow from an angular rate flow sensor (e.g. PX4FLOW or mouse sensor)
+	 */
+	public static class MSG_OPTICAL_FLOW_RAD extends Message {
+	
+		private long time_usec; // Timestamp (microseconds, synced to UNIX time or since system boot)
+		private long integration_time_us; // Integration time in microseconds. Divide integrated_x and integrated_y by the integration time to obtain average flow. The integration time also indicates the.
+		private float integrated_x; // Flow in radians around X axis (Sensor RH rotation about the X axis induces a positive flow. Sensor linear motion along the positive Y axis induces a negative flow.)
+		private float integrated_y; // Flow in radians around Y axis (Sensor RH rotation about the Y axis induces a positive flow. Sensor linear motion along the positive X axis induces a positive flow.)
+		private float integrated_xgyro; // RH rotation around X axis (rad)
+		private float integrated_ygyro; // RH rotation around Y axis (rad)
+		private float integrated_zgyro; // RH rotation around Z axis (rad)
+		private long time_delta_distance_us; // Time in microseconds since the distance was sampled.
+		private float distance; // Distance to the center of the flow field in meters. Positive value (including zero): distance known. Negative value: Unknown distance.
+		private int temperature; // Temperature * 100 in centi-degrees Celsius
+		private int sensor_id; // Sensor ID
+		private int quality; // Optical flow quality / confidence. 0: no valid flow, 255: maximum quality
+	
+		public MSG_OPTICAL_FLOW_RAD () {
+			super("OPTICAL_FLOW_RAD", MSG_ID_OPTICAL_FLOW_RAD);
+		}
+
+		public MSG_OPTICAL_FLOW_RAD (byte[] bytes) {
+			super(bytes, "OPTICAL_FLOW_RAD", MSG_ID_OPTICAL_FLOW_RAD);
+		}
+	
+		public MSG_OPTICAL_FLOW_RAD (short systemId, short componentId, long time_usec  , long integration_time_us  , float integrated_x  , float integrated_y  , float integrated_xgyro  , float integrated_ygyro  , float integrated_zgyro  , long time_delta_distance_us  , float distance  , int temperature  , int sensor_id  , int quality  ) {
+			super(systemId, componentId);
+			this.time_usec = time_usec;
+			this.integration_time_us = integration_time_us;
+			this.integrated_x = integrated_x;
+			this.integrated_y = integrated_y;
+			this.integrated_xgyro = integrated_xgyro;
+			this.integrated_ygyro = integrated_ygyro;
+			this.integrated_zgyro = integrated_zgyro;
+			this.time_delta_distance_us = time_delta_distance_us;
+			this.distance = distance;
+			this.temperature = temperature;
+			this.sensor_id = sensor_id;
+			this.quality = quality;
+		}
+
+		@Override
+		public int getLength() {
+			return 100;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 138;
+		}
+	
+		public long getTime_usec() {
+			return time_usec;
+		}
+		
+		public void setTime_usec(long time_usec) {
+			this.time_usec = time_usec;
+		}
+		
+		public long getIntegration_time_us() {
+			return integration_time_us;
+		}
+		
+		public void setIntegration_time_us(long integration_time_us) {
+			this.integration_time_us = integration_time_us;
+		}
+		
+		public float getIntegrated_x() {
+			return integrated_x;
+		}
+		
+		public void setIntegrated_x(float integrated_x) {
+			this.integrated_x = integrated_x;
+		}
+		
+		public float getIntegrated_y() {
+			return integrated_y;
+		}
+		
+		public void setIntegrated_y(float integrated_y) {
+			this.integrated_y = integrated_y;
+		}
+		
+		public float getIntegrated_xgyro() {
+			return integrated_xgyro;
+		}
+		
+		public void setIntegrated_xgyro(float integrated_xgyro) {
+			this.integrated_xgyro = integrated_xgyro;
+		}
+		
+		public float getIntegrated_ygyro() {
+			return integrated_ygyro;
+		}
+		
+		public void setIntegrated_ygyro(float integrated_ygyro) {
+			this.integrated_ygyro = integrated_ygyro;
+		}
+		
+		public float getIntegrated_zgyro() {
+			return integrated_zgyro;
+		}
+		
+		public void setIntegrated_zgyro(float integrated_zgyro) {
+			this.integrated_zgyro = integrated_zgyro;
+		}
+		
+		public long getTime_delta_distance_us() {
+			return time_delta_distance_us;
+		}
+		
+		public void setTime_delta_distance_us(long time_delta_distance_us) {
+			this.time_delta_distance_us = time_delta_distance_us;
+		}
+		
+		public float getDistance() {
+			return distance;
+		}
+		
+		public void setDistance(float distance) {
+			this.distance = distance;
+		}
+		
+		public int getTemperature() {
+			return temperature;
+		}
+		
+		public void setTemperature(int temperature) {
+			this.temperature = temperature;
+		}
+		
+		public int getSensor_id() {
+			return sensor_id;
+		}
+		
+		public void setSensor_id(int sensor_id) {
+			this.sensor_id = sensor_id;
+		}
+		
+		public int getQuality() {
+			return quality;
+		}
+		
+		public void setQuality(int quality) {
+			this.quality = quality;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			time_usec = buffer.getLong(); // uint64_t
+  			integration_time_us = buffer.getInt() & 0xffffffff; // uint32_t
+  			integrated_x = buffer.getFloat(); // float
+  			integrated_y = buffer.getFloat(); // float
+  			integrated_xgyro = buffer.getFloat(); // float
+  			integrated_ygyro = buffer.getFloat(); // float
+  			integrated_zgyro = buffer.getFloat(); // float
+  			time_delta_distance_us = buffer.getInt() & 0xffffffff; // uint32_t
+  			distance = buffer.getFloat(); // float
+  			temperature = buffer.getShort(); // int16_t
+  			sensor_id = (int)buffer.get() & 0xff; // uint8_t
+  			quality = (int)buffer.get() & 0xff; // uint8_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putLong(time_usec); // uint64_t
+  			buffer.putInt((int)(integration_time_us & 0xffffffff)); // uint32_t
+  			buffer.putFloat(integrated_x); // float
+  			buffer.putFloat(integrated_y); // float
+  			buffer.putFloat(integrated_xgyro); // float
+  			buffer.putFloat(integrated_ygyro); // float
+  			buffer.putFloat(integrated_zgyro); // float
+  			buffer.putInt((int)(time_delta_distance_us & 0xffffffff)); // uint32_t
+  			buffer.putFloat(distance); // float
+  			buffer.putShort((short)(temperature)); // int16_t
+  			buffer.put((byte)(sensor_id & 0xff)); // uint8_t
+  			buffer.put((byte)(quality & 0xff)); // uint8_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_OPTICAL_FLOW_RAD { " + 
+			"time_usec = " + time_usec + ", " + 
+			"integration_time_us = " + integration_time_us + ", " + 
+			"integrated_x = " + integrated_x + ", " + 
+			"integrated_y = " + integrated_y + ", " + 
+			"integrated_xgyro = " + integrated_xgyro + ", " + 
+			"integrated_ygyro = " + integrated_ygyro + ", " + 
+			"integrated_zgyro = " + integrated_zgyro + ", " + 
+			"time_delta_distance_us = " + time_delta_distance_us + ", " + 
+			"distance = " + distance + ", " + 
+			"temperature = " + temperature + ", " + 
+			"sensor_id = " + sensor_id + ", " + 
+			"quality = " + quality + ",  }";
+		}
+	}
+	/*
+	 * Bind a RC channel to a parameter. The parameter should change accoding to the RC channel value.
+	 */
+	public static class MSG_PARAM_MAP_RC extends Message {
+	
+		private float param_value0; // Initial parameter value
+		private float scale; // Scale, maps the RC range [-1, 1] to a parameter value
+		private float param_value_min; // Minimum param value. The protocol does not define if this overwrites an onboard minimum value. (Depends on implementation)
+		private float param_value_max; // Maximum param value. The protocol does not define if this overwrites an onboard maximum value. (Depends on implementation)
+		private int param_index; // Parameter index. Send -1 to use the param ID field as identifier (else the param id will be ignored), send -2 to disable any existing map for this rc_channel_index.
+		private int target_system; // System ID
+		private int target_component; // Component ID
+		private char[] param_id = new char[16]; // Onboard parameter id, terminated by NULL if the length is less than 16 human-readable chars and WITHOUT null termination (NULL) byte if the length is exactly 16 chars - applications have to provide 16+1 bytes storage if the ID is stored as string
+		private int parameter_rc_channel_index; // Index of parameter RC channel. Not equal to the RC channel id. Typically correpsonds to a potentiometer-knob on the RC.
+	
+		public MSG_PARAM_MAP_RC () {
+			super("PARAM_MAP_RC", MSG_ID_PARAM_MAP_RC);
+		}
+
+		public MSG_PARAM_MAP_RC (byte[] bytes) {
+			super(bytes, "PARAM_MAP_RC", MSG_ID_PARAM_MAP_RC);
+		}
+	
+		public MSG_PARAM_MAP_RC (short systemId, short componentId, float param_value0  , float scale  , float param_value_min  , float param_value_max  , int param_index  , int target_system  , int target_component  , char param_id [] , int parameter_rc_channel_index  ) {
+			super(systemId, componentId);
+			this.param_value0 = param_value0;
+			this.scale = scale;
+			this.param_value_min = param_value_min;
+			this.param_value_max = param_value_max;
+			this.param_index = param_index;
+			this.target_system = target_system;
+			this.target_component = target_component;
+			this.param_id = param_id;
+			this.parameter_rc_channel_index = parameter_rc_channel_index;
+		}
+
+		@Override
+		public int getLength() {
+			return 22;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 78;
+		}
+	
+		public float getParam_value0() {
+			return param_value0;
+		}
+		
+		public void setParam_value0(float param_value0) {
+			this.param_value0 = param_value0;
+		}
+		
+		public float getScale() {
+			return scale;
+		}
+		
+		public void setScale(float scale) {
+			this.scale = scale;
+		}
+		
+		public float getParam_value_min() {
+			return param_value_min;
+		}
+		
+		public void setParam_value_min(float param_value_min) {
+			this.param_value_min = param_value_min;
+		}
+		
+		public float getParam_value_max() {
+			return param_value_max;
+		}
+		
+		public void setParam_value_max(float param_value_max) {
+			this.param_value_max = param_value_max;
+		}
+		
+		public int getParam_index() {
+			return param_index;
+		}
+		
+		public void setParam_index(int param_index) {
+			this.param_index = param_index;
+		}
+		
+		public int getTarget_system() {
+			return target_system;
+		}
+		
+		public void setTarget_system(int target_system) {
+			this.target_system = target_system;
+		}
+		
+		public int getTarget_component() {
+			return target_component;
+		}
+		
+		public void setTarget_component(int target_component) {
+			this.target_component = target_component;
+		}
+		
+		public char[] getParam_id() {
+			return param_id;
+		}
+		
+		public void setParam_id(char param_id[]) {
+			this.param_id = param_id;
+		}
+		
+		public int getParameter_rc_channel_index() {
+			return parameter_rc_channel_index;
+		}
+		
+		public void setParameter_rc_channel_index(int parameter_rc_channel_index) {
+			this.parameter_rc_channel_index = parameter_rc_channel_index;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			param_value0 = buffer.getFloat(); // float
+  			scale = buffer.getFloat(); // float
+  			param_value_min = buffer.getFloat(); // float
+  			param_value_max = buffer.getFloat(); // float
+  			param_index = buffer.getShort(); // int16_t
+  			target_system = (int)buffer.get() & 0xff; // uint8_t
+  			target_component = (int)buffer.get() & 0xff; // uint8_t
+  			for(int c=0; c<16; ++c) {
+				param_id [c] =  (char)buffer.get(); // char[16]
+ 			}
+			
+ 			parameter_rc_channel_index = (int)buffer.get() & 0xff; // uint8_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putFloat(param_value0); // float
+  			buffer.putFloat(scale); // float
+  			buffer.putFloat(param_value_min); // float
+  			buffer.putFloat(param_value_max); // float
+  			buffer.putShort((short)(param_index)); // int16_t
+  			buffer.put((byte)(target_system & 0xff)); // uint8_t
+  			buffer.put((byte)(target_component & 0xff)); // uint8_t
+  			for(int c=0; c<16; ++c) {
+				buffer.put((byte)(param_id [c]));
+ 			}
+			
+ 			buffer.put((byte)(parameter_rc_channel_index & 0xff)); // uint8_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_PARAM_MAP_RC { " + 
+			"param_value0 = " + param_value0 + ", " + 
+			"scale = " + scale + ", " + 
+			"param_value_min = " + param_value_min + ", " + 
+			"param_value_max = " + param_value_max + ", " + 
+			"param_index = " + param_index + ", " + 
+			"target_system = " + target_system + ", " + 
+			"target_component = " + target_component + ", " + 
+			"param_id = " + param_id + ", " + 
+			"parameter_rc_channel_index = " + parameter_rc_channel_index + ",  }";
+		}
+	}
+	/*
 	 * Request all parameters of this component. After his request, all parameters are emitted.
 	 */
 	public static class MSG_PARAM_REQUEST_LIST extends Message {
@@ -9518,6 +12198,10 @@ public class MAVLink {
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
+		public MSG_PARAM_REQUEST_LIST () {
+			super("PARAM_REQUEST_LIST", MSG_ID_PARAM_REQUEST_LIST);
+		}
+
 		public MSG_PARAM_REQUEST_LIST (byte[] bytes) {
 			super(bytes, "PARAM_REQUEST_LIST", MSG_ID_PARAM_REQUEST_LIST);
 		}
@@ -9584,8 +12268,12 @@ public class MAVLink {
 		private int param_index; // Parameter index. Send -1 to use the param ID field as identifier (else the param id will be ignored)
 		private int target_system; // System ID
 		private int target_component; // Component ID
-		private char param_id[] = new char[16]; // Onboard parameter id, terminated by NULL if the length is less than 16 human-readable chars and WITHOUT null termination (NULL) byte if the length is exactly 16 chars - applications have to provide 16+1 bytes storage if the ID is stored as string
+		private char[] param_id = new char[16]; // Onboard parameter id, terminated by NULL if the length is less than 16 human-readable chars and WITHOUT null termination (NULL) byte if the length is exactly 16 chars - applications have to provide 16+1 bytes storage if the ID is stored as string
 	
+		public MSG_PARAM_REQUEST_READ () {
+			super("PARAM_REQUEST_READ", MSG_ID_PARAM_REQUEST_READ);
+		}
+
 		public MSG_PARAM_REQUEST_READ (byte[] bytes) {
 			super(bytes, "PARAM_REQUEST_READ", MSG_ID_PARAM_REQUEST_READ);
 		}
@@ -9682,9 +12370,13 @@ public class MAVLink {
 		private float param_value; // Onboard parameter value
 		private int target_system; // System ID
 		private int target_component; // Component ID
-		private char param_id[] = new char[16]; // Onboard parameter id, terminated by NULL if the length is less than 16 human-readable chars and WITHOUT null termination (NULL) byte if the length is exactly 16 chars - applications have to provide 16+1 bytes storage if the ID is stored as string
+		private char[] param_id = new char[16]; // Onboard parameter id, terminated by NULL if the length is less than 16 human-readable chars and WITHOUT null termination (NULL) byte if the length is exactly 16 chars - applications have to provide 16+1 bytes storage if the ID is stored as string
 		private int param_type; // Onboard parameter type: see the MAV_PARAM_TYPE enum for supported data types.
 	
+		public MSG_PARAM_SET () {
+			super("PARAM_SET", MSG_ID_PARAM_SET);
+		}
+
 		public MSG_PARAM_SET (byte[] bytes) {
 			super(bytes, "PARAM_SET", MSG_ID_PARAM_SET);
 		}
@@ -9793,9 +12485,13 @@ public class MAVLink {
 		private float param_value; // Onboard parameter value
 		private int param_count; // Total number of onboard parameters
 		private int param_index; // Index of this onboard parameter
-		private char param_id[] = new char[16]; // Onboard parameter id, terminated by NULL if the length is less than 16 human-readable chars and WITHOUT null termination (NULL) byte if the length is exactly 16 chars - applications have to provide 16+1 bytes storage if the ID is stored as string
+		private char[] param_id = new char[16]; // Onboard parameter id, terminated by NULL if the length is less than 16 human-readable chars and WITHOUT null termination (NULL) byte if the length is exactly 16 chars - applications have to provide 16+1 bytes storage if the ID is stored as string
 		private int param_type; // Onboard parameter type: see the MAV_PARAM_TYPE enum for supported data types.
 	
+		public MSG_PARAM_VALUE () {
+			super("PARAM_VALUE", MSG_ID_PARAM_VALUE);
+		}
+
 		public MSG_PARAM_VALUE (byte[] bytes) {
 			super(bytes, "PARAM_VALUE", MSG_ID_PARAM_VALUE);
 		}
@@ -9896,16 +12592,119 @@ public class MAVLink {
 			"param_type = " + param_type + ",  }";
 		}
 	}
+	public static class MSG_PATTERN_DETECTED extends Message {
+	
+		private float confidence; // Confidence of detection
+		private int type; // 0: Pattern, 1: Letter
+		private char[] file = new char[100]; // Pattern file name
+		private int detected; // Accepted as true detection, 0 no, 1 yes
+	
+		public MSG_PATTERN_DETECTED () {
+			super("PATTERN_DETECTED", MSG_ID_PATTERN_DETECTED);
+		}
+
+		public MSG_PATTERN_DETECTED (byte[] bytes) {
+			super(bytes, "PATTERN_DETECTED", MSG_ID_PATTERN_DETECTED);
+		}
+	
+		public MSG_PATTERN_DETECTED (short systemId, short componentId, float confidence  , int type  , char file [] , int detected  ) {
+			super(systemId, componentId);
+			this.confidence = confidence;
+			this.type = type;
+			this.file = file;
+			this.detected = detected;
+		}
+
+		@Override
+		public int getLength() {
+			return 7;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 90;
+		}
+	
+		public float getConfidence() {
+			return confidence;
+		}
+		
+		public void setConfidence(float confidence) {
+			this.confidence = confidence;
+		}
+		
+		public int getType() {
+			return type;
+		}
+		
+		public void setType(int type) {
+			this.type = type;
+		}
+		
+		public char[] getFile() {
+			return file;
+		}
+		
+		public void setFile(char file[]) {
+			this.file = file;
+		}
+		
+		public int getDetected() {
+			return detected;
+		}
+		
+		public void setDetected(int detected) {
+			this.detected = detected;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			confidence = buffer.getFloat(); // float
+  			type = (int)buffer.get() & 0xff; // uint8_t
+  			for(int c=0; c<100; ++c) {
+				file [c] =  (char)buffer.get(); // char[100]
+ 			}
+			
+ 			detected = (int)buffer.get() & 0xff; // uint8_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putFloat(confidence); // float
+  			buffer.put((byte)(type & 0xff)); // uint8_t
+  			for(int c=0; c<100; ++c) {
+				buffer.put((byte)(file [c]));
+ 			}
+			
+ 			buffer.put((byte)(detected & 0xff)); // uint8_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_PATTERN_DETECTED { " + 
+			"confidence = " + confidence + ", " + 
+			"type = " + type + ", " + 
+			"file = " + file + ", " + 
+			"detected = " + detected + ",  }";
+		}
+	}
 	/*
 	 * A ping message either requesting or responding to a ping. This allows to measure the system latencies, including serial port, radio modem and UDP connections.
 	 */
 	public static class MSG_PING extends Message {
 	
-		private long time_usec; // Unix timestamp in microseconds
+		private long time_usec; // Unix timestamp in microseconds or since system boot if smaller than MAVLink epoch (1.1.2009)
 		private long seq; // PING sequence
 		private int target_system; // 0: request ping from all receiving systems, if greater than 0: message is a ping response and number is the system id of the requesting system
 		private int target_component; // 0: request ping from all receiving components, if greater than 0: message is a ping response and number is the system id of the requesting system
 	
+		public MSG_PING () {
+			super("PING", MSG_ID_PING);
+		}
+
 		public MSG_PING (byte[] bytes) {
 			super(bytes, "PING", MSG_ID_PING);
 		}
@@ -9989,6 +12788,465 @@ public class MAVLink {
 		}
 	}
 	/*
+	 * Notifies the operator about a point of interest (POI). This can be anything detected by the
+                system. This generic message is intented to help interfacing to generic visualizations and to display
+                the POI on a map.
+            
+	 */
+	public static class MSG_POINT_OF_INTEREST extends Message {
+	
+		private float x; // X Position
+		private float y; // Y Position
+		private float z; // Z Position
+		private int timeout; // 0: no timeout, >1: timeout in seconds
+		private int type; // 0: Notice, 1: Warning, 2: Critical, 3: Emergency, 4: Debug
+		private int color; // 0: blue, 1: yellow, 2: red, 3: orange, 4: green, 5: magenta
+		private int coordinate_system; // 0: global, 1:local
+		private char[] name = new char[26]; // POI name
+	
+		public MSG_POINT_OF_INTEREST () {
+			super("POINT_OF_INTEREST", MSG_ID_POINT_OF_INTEREST);
+		}
+
+		public MSG_POINT_OF_INTEREST (byte[] bytes) {
+			super(bytes, "POINT_OF_INTEREST", MSG_ID_POINT_OF_INTEREST);
+		}
+	
+		public MSG_POINT_OF_INTEREST (short systemId, short componentId, float x  , float y  , float z  , int timeout  , int type  , int color  , int coordinate_system  , char name [] ) {
+			super(systemId, componentId);
+			this.x = x;
+			this.y = y;
+			this.z = z;
+			this.timeout = timeout;
+			this.type = type;
+			this.color = color;
+			this.coordinate_system = coordinate_system;
+			this.name = name;
+		}
+
+		@Override
+		public int getLength() {
+			return 18;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 95;
+		}
+	
+		public float getX() {
+			return x;
+		}
+		
+		public void setX(float x) {
+			this.x = x;
+		}
+		
+		public float getY() {
+			return y;
+		}
+		
+		public void setY(float y) {
+			this.y = y;
+		}
+		
+		public float getZ() {
+			return z;
+		}
+		
+		public void setZ(float z) {
+			this.z = z;
+		}
+		
+		public int getTimeout() {
+			return timeout;
+		}
+		
+		public void setTimeout(int timeout) {
+			this.timeout = timeout;
+		}
+		
+		public int getType() {
+			return type;
+		}
+		
+		public void setType(int type) {
+			this.type = type;
+		}
+		
+		public int getColor() {
+			return color;
+		}
+		
+		public void setColor(int color) {
+			this.color = color;
+		}
+		
+		public int getCoordinate_system() {
+			return coordinate_system;
+		}
+		
+		public void setCoordinate_system(int coordinate_system) {
+			this.coordinate_system = coordinate_system;
+		}
+		
+		public char[] getName() {
+			return name;
+		}
+		
+		public void setName(char name[]) {
+			this.name = name;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			x = buffer.getFloat(); // float
+  			y = buffer.getFloat(); // float
+  			z = buffer.getFloat(); // float
+  			timeout = buffer.getShort() & 0xffff; // uint16_t
+  			type = (int)buffer.get() & 0xff; // uint8_t
+  			color = (int)buffer.get() & 0xff; // uint8_t
+  			coordinate_system = (int)buffer.get() & 0xff; // uint8_t
+  			for(int c=0; c<26; ++c) {
+				name [c] =  (char)buffer.get(); // char[26]
+ 			}
+			
+  			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putFloat(x); // float
+  			buffer.putFloat(y); // float
+  			buffer.putFloat(z); // float
+  			buffer.putShort((short)(timeout & 0xffff)); // uint16_t
+  			buffer.put((byte)(type & 0xff)); // uint8_t
+  			buffer.put((byte)(color & 0xff)); // uint8_t
+  			buffer.put((byte)(coordinate_system & 0xff)); // uint8_t
+  			for(int c=0; c<26; ++c) {
+				buffer.put((byte)(name [c]));
+ 			}
+			
+  			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_POINT_OF_INTEREST { " + 
+			"x = " + x + ", " + 
+			"y = " + y + ", " + 
+			"z = " + z + ", " + 
+			"timeout = " + timeout + ", " + 
+			"type = " + type + ", " + 
+			"color = " + color + ", " + 
+			"coordinate_system = " + coordinate_system + ", " + 
+			"name = " + name + ",  }";
+		}
+	}
+	/*
+	 * Notifies the operator about the connection of two point of interests (POI). This can be anything detected by the
+                system. This generic message is intented to help interfacing to generic visualizations and to display
+                the POI on a map.
+            
+	 */
+	public static class MSG_POINT_OF_INTEREST_CONNECTION extends Message {
+	
+		private float xp1; // X1 Position
+		private float yp1; // Y1 Position
+		private float zp1; // Z1 Position
+		private float xp2; // X2 Position
+		private float yp2; // Y2 Position
+		private float zp2; // Z2 Position
+		private int timeout; // 0: no timeout, >1: timeout in seconds
+		private int type; // 0: Notice, 1: Warning, 2: Critical, 3: Emergency, 4: Debug
+		private int color; // 0: blue, 1: yellow, 2: red, 3: orange, 4: green, 5: magenta
+		private int coordinate_system; // 0: global, 1:local
+		private char[] name = new char[26]; // POI connection name
+	
+		public MSG_POINT_OF_INTEREST_CONNECTION () {
+			super("POINT_OF_INTEREST_CONNECTION", MSG_ID_POINT_OF_INTEREST_CONNECTION);
+		}
+
+		public MSG_POINT_OF_INTEREST_CONNECTION (byte[] bytes) {
+			super(bytes, "POINT_OF_INTEREST_CONNECTION", MSG_ID_POINT_OF_INTEREST_CONNECTION);
+		}
+	
+		public MSG_POINT_OF_INTEREST_CONNECTION (short systemId, short componentId, float xp1  , float yp1  , float zp1  , float xp2  , float yp2  , float zp2  , int timeout  , int type  , int color  , int coordinate_system  , char name [] ) {
+			super(systemId, componentId);
+			this.xp1 = xp1;
+			this.yp1 = yp1;
+			this.zp1 = zp1;
+			this.xp2 = xp2;
+			this.yp2 = yp2;
+			this.zp2 = zp2;
+			this.timeout = timeout;
+			this.type = type;
+			this.color = color;
+			this.coordinate_system = coordinate_system;
+			this.name = name;
+		}
+
+		@Override
+		public int getLength() {
+			return 30;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 36;
+		}
+	
+		public float getXp1() {
+			return xp1;
+		}
+		
+		public void setXp1(float xp1) {
+			this.xp1 = xp1;
+		}
+		
+		public float getYp1() {
+			return yp1;
+		}
+		
+		public void setYp1(float yp1) {
+			this.yp1 = yp1;
+		}
+		
+		public float getZp1() {
+			return zp1;
+		}
+		
+		public void setZp1(float zp1) {
+			this.zp1 = zp1;
+		}
+		
+		public float getXp2() {
+			return xp2;
+		}
+		
+		public void setXp2(float xp2) {
+			this.xp2 = xp2;
+		}
+		
+		public float getYp2() {
+			return yp2;
+		}
+		
+		public void setYp2(float yp2) {
+			this.yp2 = yp2;
+		}
+		
+		public float getZp2() {
+			return zp2;
+		}
+		
+		public void setZp2(float zp2) {
+			this.zp2 = zp2;
+		}
+		
+		public int getTimeout() {
+			return timeout;
+		}
+		
+		public void setTimeout(int timeout) {
+			this.timeout = timeout;
+		}
+		
+		public int getType() {
+			return type;
+		}
+		
+		public void setType(int type) {
+			this.type = type;
+		}
+		
+		public int getColor() {
+			return color;
+		}
+		
+		public void setColor(int color) {
+			this.color = color;
+		}
+		
+		public int getCoordinate_system() {
+			return coordinate_system;
+		}
+		
+		public void setCoordinate_system(int coordinate_system) {
+			this.coordinate_system = coordinate_system;
+		}
+		
+		public char[] getName() {
+			return name;
+		}
+		
+		public void setName(char name[]) {
+			this.name = name;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			xp1 = buffer.getFloat(); // float
+  			yp1 = buffer.getFloat(); // float
+  			zp1 = buffer.getFloat(); // float
+  			xp2 = buffer.getFloat(); // float
+  			yp2 = buffer.getFloat(); // float
+  			zp2 = buffer.getFloat(); // float
+  			timeout = buffer.getShort() & 0xffff; // uint16_t
+  			type = (int)buffer.get() & 0xff; // uint8_t
+  			color = (int)buffer.get() & 0xff; // uint8_t
+  			coordinate_system = (int)buffer.get() & 0xff; // uint8_t
+  			for(int c=0; c<26; ++c) {
+				name [c] =  (char)buffer.get(); // char[26]
+ 			}
+			
+  			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putFloat(xp1); // float
+  			buffer.putFloat(yp1); // float
+  			buffer.putFloat(zp1); // float
+  			buffer.putFloat(xp2); // float
+  			buffer.putFloat(yp2); // float
+  			buffer.putFloat(zp2); // float
+  			buffer.putShort((short)(timeout & 0xffff)); // uint16_t
+  			buffer.put((byte)(type & 0xff)); // uint8_t
+  			buffer.put((byte)(color & 0xff)); // uint8_t
+  			buffer.put((byte)(coordinate_system & 0xff)); // uint8_t
+  			for(int c=0; c<26; ++c) {
+				buffer.put((byte)(name [c]));
+ 			}
+			
+  			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_POINT_OF_INTEREST_CONNECTION { " + 
+			"xp1 = " + xp1 + ", " + 
+			"yp1 = " + yp1 + ", " + 
+			"zp1 = " + zp1 + ", " + 
+			"xp2 = " + xp2 + ", " + 
+			"yp2 = " + yp2 + ", " + 
+			"zp2 = " + zp2 + ", " + 
+			"timeout = " + timeout + ", " + 
+			"type = " + type + ", " + 
+			"color = " + color + ", " + 
+			"coordinate_system = " + coordinate_system + ", " + 
+			"name = " + name + ",  }";
+		}
+	}
+	public static class MSG_POSITION_CONTROL_SETPOINT extends Message {
+	
+		private float x; // x position
+		private float y; // y position
+		private float z; // z position
+		private float yaw; // yaw orientation in radians, 0 = NORTH
+		private int id; // ID of waypoint, 0 for plain position
+	
+		public MSG_POSITION_CONTROL_SETPOINT () {
+			super("POSITION_CONTROL_SETPOINT", MSG_ID_POSITION_CONTROL_SETPOINT);
+		}
+
+		public MSG_POSITION_CONTROL_SETPOINT (byte[] bytes) {
+			super(bytes, "POSITION_CONTROL_SETPOINT", MSG_ID_POSITION_CONTROL_SETPOINT);
+		}
+	
+		public MSG_POSITION_CONTROL_SETPOINT (short systemId, short componentId, float x  , float y  , float z  , float yaw  , int id  ) {
+			super(systemId, componentId);
+			this.x = x;
+			this.y = y;
+			this.z = z;
+			this.yaw = yaw;
+			this.id = id;
+		}
+
+		@Override
+		public int getLength() {
+			return 18;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 28;
+		}
+	
+		public float getX() {
+			return x;
+		}
+		
+		public void setX(float x) {
+			this.x = x;
+		}
+		
+		public float getY() {
+			return y;
+		}
+		
+		public void setY(float y) {
+			this.y = y;
+		}
+		
+		public float getZ() {
+			return z;
+		}
+		
+		public void setZ(float z) {
+			this.z = z;
+		}
+		
+		public float getYaw() {
+			return yaw;
+		}
+		
+		public void setYaw(float yaw) {
+			this.yaw = yaw;
+		}
+		
+		public int getId() {
+			return id;
+		}
+		
+		public void setId(int id) {
+			this.id = id;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			x = buffer.getFloat(); // float
+  			y = buffer.getFloat(); // float
+  			z = buffer.getFloat(); // float
+  			yaw = buffer.getFloat(); // float
+  			id = buffer.getShort() & 0xffff; // uint16_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putFloat(x); // float
+  			buffer.putFloat(y); // float
+  			buffer.putFloat(z); // float
+  			buffer.putFloat(yaw); // float
+  			buffer.putShort((short)(id & 0xffff)); // uint16_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_POSITION_CONTROL_SETPOINT { " + 
+			"x = " + x + ", " + 
+			"y = " + y + ", " + 
+			"z = " + z + ", " + 
+			"yaw = " + yaw + ", " + 
+			"id = " + id + ",  }";
+		}
+	}
+	/*
 	 * Set vehicle position, velocity and acceleration setpoint in the WGS84 coordinate system.
 	 */
 	public static class MSG_POSITION_TARGET_GLOBAL_INT extends Message {
@@ -9996,7 +13254,7 @@ public class MAVLink {
 		private long time_boot_ms; // Timestamp in milliseconds since system boot. The rationale for the timestamp in the setpoint is to allow the system to compensate for the transport delay of the setpoint. This allows the system to compensate processing latency.
 		private int lat_int; // X Position in WGS84 frame in 1e7 * meters
 		private int lon_int; // Y Position in WGS84 frame in 1e7 * meters
-		private float alt; // Altitude in meters in WGS84 altitude, not AMSL if absolute or relative, above terrain if GLOBAL_TERRAIN_ALT_INT
+		private float alt; // Altitude in meters in AMSL altitude, not WGS84 if absolute or relative, above terrain if GLOBAL_TERRAIN_ALT_INT
 		private float vx; // X velocity in NED frame in meter / s
 		private float vy; // Y velocity in NED frame in meter / s
 		private float vz; // Z velocity in NED frame in meter / s
@@ -10008,6 +13266,10 @@ public class MAVLink {
 		private int type_mask; // Bitmask to indicate which dimensions should be ignored by the vehicle: a value of 0b0000000000000000 or 0b0000001000000000 indicates that none of the setpoint dimensions should be ignored. If bit 10 is set the floats afx afy afz should be interpreted as force instead of acceleration. Mapping: bit 1: x, bit 2: y, bit 3: z, bit 4: vx, bit 5: vy, bit 6: vz, bit 7: ax, bit 8: ay, bit 9: az, bit 10: is force setpoint, bit 11: yaw, bit 12: yaw rate
 		private int coordinate_frame; // Valid options are: MAV_FRAME_GLOBAL_INT = 5, MAV_FRAME_GLOBAL_RELATIVE_ALT_INT = 6, MAV_FRAME_GLOBAL_TERRAIN_ALT_INT = 11
 	
+		public MSG_POSITION_TARGET_GLOBAL_INT () {
+			super("POSITION_TARGET_GLOBAL_INT", MSG_ID_POSITION_TARGET_GLOBAL_INT);
+		}
+
 		public MSG_POSITION_TARGET_GLOBAL_INT (byte[] bytes) {
 			super(bytes, "POSITION_TARGET_GLOBAL_INT", MSG_ID_POSITION_TARGET_GLOBAL_INT);
 		}
@@ -10230,6 +13492,10 @@ public class MAVLink {
 		private int type_mask; // Bitmask to indicate which dimensions should be ignored by the vehicle: a value of 0b0000000000000000 or 0b0000001000000000 indicates that none of the setpoint dimensions should be ignored. If bit 10 is set the floats afx afy afz should be interpreted as force instead of acceleration. Mapping: bit 1: x, bit 2: y, bit 3: z, bit 4: vx, bit 5: vy, bit 6: vz, bit 7: ax, bit 8: ay, bit 9: az, bit 10: is force setpoint, bit 11: yaw, bit 12: yaw rate
 		private int coordinate_frame; // Valid options are: MAV_FRAME_LOCAL_NED = 1, MAV_FRAME_LOCAL_OFFSET_NED = 7, MAV_FRAME_BODY_NED = 8, MAV_FRAME_BODY_OFFSET_NED = 9
 	
+		public MSG_POSITION_TARGET_LOCAL_NED () {
+			super("POSITION_TARGET_LOCAL_NED", MSG_ID_POSITION_TARGET_LOCAL_NED);
+		}
+
 		public MSG_POSITION_TARGET_LOCAL_NED (byte[] bytes) {
 			super(bytes, "POSITION_TARGET_LOCAL_NED", MSG_ID_POSITION_TARGET_LOCAL_NED);
 		}
@@ -10441,6 +13707,10 @@ public class MAVLink {
 		private int Vservo; // servo rail voltage in millivolts
 		private int flags; // power supply status flags (see MAV_POWER_STATUS enum)
 	
+		public MSG_POWER_STATUS () {
+			super("POWER_STATUS", MSG_ID_POWER_STATUS);
+		}
+
 		public MSG_POWER_STATUS (byte[] bytes) {
 			super(bytes, "POWER_STATUS", MSG_ID_POWER_STATUS);
 		}
@@ -10512,18 +13782,22 @@ public class MAVLink {
 		}
 	}
 	/*
-	 * Status generated by radio
+	 * Status generated by radio and injected into MAVLink stream.
 	 */
 	public static class MSG_RADIO_STATUS extends Message {
 	
-		private int rxerrors; // receive errors
-		private int fixed; // count of error corrected packets
-		private int rssi; // local signal strength
-		private int remrssi; // remote signal strength
-		private int txbuf; // how full the tx buffer is as a percentage
-		private int noise; // background noise level
-		private int remnoise; // remote background noise level
+		private int rxerrors; // Receive errors
+		private int fixed; // Count of error corrected packets
+		private int rssi; // Local signal strength
+		private int remrssi; // Remote signal strength
+		private int txbuf; // Remaining free buffer space in percent.
+		private int noise; // Background noise level
+		private int remnoise; // Remote background noise level
 	
+		public MSG_RADIO_STATUS () {
+			super("RADIO_STATUS", MSG_ID_RADIO_STATUS);
+		}
+
 		public MSG_RADIO_STATUS (byte[] bytes) {
 			super(bytes, "RADIO_STATUS", MSG_ID_RADIO_STATUS);
 		}
@@ -10642,6 +13916,138 @@ public class MAVLink {
 			"remnoise = " + remnoise + ",  }";
 		}
 	}
+	public static class MSG_RAW_AUX extends Message {
+	
+		private int baro; // Barometric pressure (hecto Pascal)
+		private int adc1; // ADC1 (J405 ADC3, LPC2148 AD0.6)
+		private int adc2; // ADC2 (J405 ADC5, LPC2148 AD0.2)
+		private int adc3; // ADC3 (J405 ADC6, LPC2148 AD0.1)
+		private int adc4; // ADC4 (J405 ADC7, LPC2148 AD1.3)
+		private int vbat; // Battery voltage
+		private int temp; // Temperature (degrees celcius)
+	
+		public MSG_RAW_AUX () {
+			super("RAW_AUX", MSG_ID_RAW_AUX);
+		}
+
+		public MSG_RAW_AUX (byte[] bytes) {
+			super(bytes, "RAW_AUX", MSG_ID_RAW_AUX);
+		}
+	
+		public MSG_RAW_AUX (short systemId, short componentId, int baro  , int adc1  , int adc2  , int adc3  , int adc4  , int vbat  , int temp  ) {
+			super(systemId, componentId);
+			this.baro = baro;
+			this.adc1 = adc1;
+			this.adc2 = adc2;
+			this.adc3 = adc3;
+			this.adc4 = adc4;
+			this.vbat = vbat;
+			this.temp = temp;
+		}
+
+		@Override
+		public int getLength() {
+			return 16;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 182;
+		}
+	
+		public int getBaro() {
+			return baro;
+		}
+		
+		public void setBaro(int baro) {
+			this.baro = baro;
+		}
+		
+		public int getAdc1() {
+			return adc1;
+		}
+		
+		public void setAdc1(int adc1) {
+			this.adc1 = adc1;
+		}
+		
+		public int getAdc2() {
+			return adc2;
+		}
+		
+		public void setAdc2(int adc2) {
+			this.adc2 = adc2;
+		}
+		
+		public int getAdc3() {
+			return adc3;
+		}
+		
+		public void setAdc3(int adc3) {
+			this.adc3 = adc3;
+		}
+		
+		public int getAdc4() {
+			return adc4;
+		}
+		
+		public void setAdc4(int adc4) {
+			this.adc4 = adc4;
+		}
+		
+		public int getVbat() {
+			return vbat;
+		}
+		
+		public void setVbat(int vbat) {
+			this.vbat = vbat;
+		}
+		
+		public int getTemp() {
+			return temp;
+		}
+		
+		public void setTemp(int temp) {
+			this.temp = temp;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			baro = buffer.getInt(); // int32_t
+  			adc1 = buffer.getShort() & 0xffff; // uint16_t
+  			adc2 = buffer.getShort() & 0xffff; // uint16_t
+  			adc3 = buffer.getShort() & 0xffff; // uint16_t
+  			adc4 = buffer.getShort() & 0xffff; // uint16_t
+  			vbat = buffer.getShort() & 0xffff; // uint16_t
+  			temp = buffer.getShort(); // int16_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putInt((int)(baro)); // int32_t
+  			buffer.putShort((short)(adc1 & 0xffff)); // uint16_t
+  			buffer.putShort((short)(adc2 & 0xffff)); // uint16_t
+  			buffer.putShort((short)(adc3 & 0xffff)); // uint16_t
+  			buffer.putShort((short)(adc4 & 0xffff)); // uint16_t
+  			buffer.putShort((short)(vbat & 0xffff)); // uint16_t
+  			buffer.putShort((short)(temp)); // int16_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_RAW_AUX { " + 
+			"baro = " + baro + ", " + 
+			"adc1 = " + adc1 + ", " + 
+			"adc2 = " + adc2 + ", " + 
+			"adc3 = " + adc3 + ", " + 
+			"adc4 = " + adc4 + ", " + 
+			"vbat = " + vbat + ", " + 
+			"temp = " + temp + ",  }";
+		}
+	}
 	/*
 	 * The RAW IMU readings for the usual 9DOF sensor setup. This message should always contain the true raw values without any scaling to allow data capture and system debugging.
 	 */
@@ -10658,6 +14064,10 @@ public class MAVLink {
 		private int ymag; // Y Magnetic field (raw)
 		private int zmag; // Z Magnetic field (raw)
 	
+		public MSG_RAW_IMU () {
+			super("RAW_IMU", MSG_ID_RAW_IMU);
+		}
+
 		public MSG_RAW_IMU (byte[] bytes) {
 			super(bytes, "RAW_IMU", MSG_ID_RAW_IMU);
 		}
@@ -10823,6 +14233,10 @@ public class MAVLink {
 		private int press_diff2; // Differential pressure 2 (raw)
 		private int temperature; // Raw Temperature measurement (raw)
 	
+		public MSG_RAW_PRESSURE () {
+			super("RAW_PRESSURE", MSG_ID_RAW_PRESSURE);
+		}
+
 		public MSG_RAW_PRESSURE (byte[] bytes) {
 			super(bytes, "RAW_PRESSURE", MSG_ID_RAW_PRESSURE);
 		}
@@ -10944,6 +14358,10 @@ public class MAVLink {
 		private int chancount; // Total number of RC channels being received. This can be larger than 18, indicating that more channels are available but not given in this message. This value should be 0 when no RC channels are available.
 		private int rssi; // Receive signal strength indicator, 0: 0%, 100: 100%, 255: invalid/unknown.
 	
+		public MSG_RC_CHANNELS () {
+			super("RC_CHANNELS", MSG_ID_RC_CHANNELS);
+		}
+
 		public MSG_RC_CHANNELS (byte[] bytes) {
 			super(bytes, "RC_CHANNELS", MSG_ID_RC_CHANNELS);
 		}
@@ -11246,6 +14664,10 @@ public class MAVLink {
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
+		public MSG_RC_CHANNELS_OVERRIDE () {
+			super("RC_CHANNELS_OVERRIDE", MSG_ID_RC_CHANNELS_OVERRIDE);
+		}
+
 		public MSG_RC_CHANNELS_OVERRIDE (byte[] bytes) {
 			super(bytes, "RC_CHANNELS_OVERRIDE", MSG_ID_RC_CHANNELS_OVERRIDE);
 		}
@@ -11417,6 +14839,10 @@ public class MAVLink {
 		private int port; // Servo output port (set of 8 outputs = 1 port). Most MAVs will just use one, but this allows for more than 8 servos.
 		private int rssi; // Receive signal strength indicator, 0: 0%, 100: 100%, 255: invalid/unknown.
 	
+		public MSG_RC_CHANNELS_RAW () {
+			super("RC_CHANNELS_RAW", MSG_ID_RC_CHANNELS_RAW);
+		}
+
 		public MSG_RC_CHANNELS_RAW (byte[] bytes) {
 			super(bytes, "RC_CHANNELS_RAW", MSG_ID_RC_CHANNELS_RAW);
 		}
@@ -11600,6 +15026,10 @@ public class MAVLink {
 		private int port; // Servo output port (set of 8 outputs = 1 port). Most MAVs will just use one, but this allows for more than 8 servos.
 		private int rssi; // Receive signal strength indicator, 0: 0%, 100: 100%, 255: invalid/unknown.
 	
+		public MSG_RC_CHANNELS_SCALED () {
+			super("RC_CHANNELS_SCALED", MSG_ID_RC_CHANNELS_SCALED);
+		}
+
 		public MSG_RC_CHANNELS_SCALED (byte[] bytes) {
 			super(bytes, "RC_CHANNELS_SCALED", MSG_ID_RC_CHANNELS_SCALED);
 		}
@@ -11774,6 +15204,10 @@ public class MAVLink {
 		private int req_stream_id; // The ID of the requested data stream
 		private int start_stop; // 1 to start sending, 0 to stop sending.
 	
+		public MSG_REQUEST_DATA_STREAM () {
+			super("REQUEST_DATA_STREAM", MSG_ID_REQUEST_DATA_STREAM);
+		}
+
 		public MSG_REQUEST_DATA_STREAM (byte[] bytes) {
 			super(bytes, "REQUEST_DATA_STREAM", MSG_ID_REQUEST_DATA_STREAM);
 		}
@@ -11881,6 +15315,10 @@ public class MAVLink {
 		private float p2z; // z position 2 / Altitude 2
 		private int frame; // Coordinate frame, as defined by MAV_FRAME enum in mavlink_types.h. Can be either global, GPS, right-handed with Z axis up or local, right handed, Z axis down.
 	
+		public MSG_SAFETY_ALLOWED_AREA () {
+			super("SAFETY_ALLOWED_AREA", MSG_ID_SAFETY_ALLOWED_AREA);
+		}
+
 		public MSG_SAFETY_ALLOWED_AREA (byte[] bytes) {
 			super(bytes, "SAFETY_ALLOWED_AREA", MSG_ID_SAFETY_ALLOWED_AREA);
 		}
@@ -12014,6 +15452,10 @@ public class MAVLink {
 		private int target_component; // Component ID
 		private int frame; // Coordinate frame, as defined by MAV_FRAME enum in mavlink_types.h. Can be either global, GPS, right-handed with Z axis up or local, right handed, Z axis down.
 	
+		public MSG_SAFETY_SET_ALLOWED_AREA () {
+			super("SAFETY_SET_ALLOWED_AREA", MSG_ID_SAFETY_SET_ALLOWED_AREA);
+		}
+
 		public MSG_SAFETY_SET_ALLOWED_AREA (byte[] bytes) {
 			super(bytes, "SAFETY_SET_ALLOWED_AREA", MSG_ID_SAFETY_SET_ALLOWED_AREA);
 		}
@@ -12172,6 +15614,10 @@ public class MAVLink {
 		private int ymag; // Y Magnetic field (milli tesla)
 		private int zmag; // Z Magnetic field (milli tesla)
 	
+		public MSG_SCALED_IMU () {
+			super("SCALED_IMU", MSG_ID_SCALED_IMU);
+		}
+
 		public MSG_SCALED_IMU (byte[] bytes) {
 			super(bytes, "SCALED_IMU", MSG_ID_SCALED_IMU);
 		}
@@ -12342,6 +15788,10 @@ public class MAVLink {
 		private int ymag; // Y Magnetic field (milli tesla)
 		private int zmag; // Z Magnetic field (milli tesla)
 	
+		public MSG_SCALED_IMU2 () {
+			super("SCALED_IMU2", MSG_ID_SCALED_IMU2);
+		}
+
 		public MSG_SCALED_IMU2 (byte[] bytes) {
 			super(bytes, "SCALED_IMU2", MSG_ID_SCALED_IMU2);
 		}
@@ -12497,6 +15947,180 @@ public class MAVLink {
 		}
 	}
 	/*
+	 * The RAW IMU readings for 3rd 9DOF sensor setup. This message should contain the scaled values to the described units
+	 */
+	public static class MSG_SCALED_IMU3 extends Message {
+	
+		private long time_boot_ms; // Timestamp (milliseconds since system boot)
+		private int xacc; // X acceleration (mg)
+		private int yacc; // Y acceleration (mg)
+		private int zacc; // Z acceleration (mg)
+		private int xgyro; // Angular speed around X axis (millirad /sec)
+		private int ygyro; // Angular speed around Y axis (millirad /sec)
+		private int zgyro; // Angular speed around Z axis (millirad /sec)
+		private int xmag; // X Magnetic field (milli tesla)
+		private int ymag; // Y Magnetic field (milli tesla)
+		private int zmag; // Z Magnetic field (milli tesla)
+	
+		public MSG_SCALED_IMU3 () {
+			super("SCALED_IMU3", MSG_ID_SCALED_IMU3);
+		}
+
+		public MSG_SCALED_IMU3 (byte[] bytes) {
+			super(bytes, "SCALED_IMU3", MSG_ID_SCALED_IMU3);
+		}
+	
+		public MSG_SCALED_IMU3 (short systemId, short componentId, long time_boot_ms  , int xacc  , int yacc  , int zacc  , int xgyro  , int ygyro  , int zgyro  , int xmag  , int ymag  , int zmag  ) {
+			super(systemId, componentId);
+			this.time_boot_ms = time_boot_ms;
+			this.xacc = xacc;
+			this.yacc = yacc;
+			this.zacc = zacc;
+			this.xgyro = xgyro;
+			this.ygyro = ygyro;
+			this.zgyro = zgyro;
+			this.xmag = xmag;
+			this.ymag = ymag;
+			this.zmag = zmag;
+		}
+
+		@Override
+		public int getLength() {
+			return 22;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 46;
+		}
+	
+		public long getTime_boot_ms() {
+			return time_boot_ms;
+		}
+		
+		public void setTime_boot_ms(long time_boot_ms) {
+			this.time_boot_ms = time_boot_ms;
+		}
+		
+		public int getXacc() {
+			return xacc;
+		}
+		
+		public void setXacc(int xacc) {
+			this.xacc = xacc;
+		}
+		
+		public int getYacc() {
+			return yacc;
+		}
+		
+		public void setYacc(int yacc) {
+			this.yacc = yacc;
+		}
+		
+		public int getZacc() {
+			return zacc;
+		}
+		
+		public void setZacc(int zacc) {
+			this.zacc = zacc;
+		}
+		
+		public int getXgyro() {
+			return xgyro;
+		}
+		
+		public void setXgyro(int xgyro) {
+			this.xgyro = xgyro;
+		}
+		
+		public int getYgyro() {
+			return ygyro;
+		}
+		
+		public void setYgyro(int ygyro) {
+			this.ygyro = ygyro;
+		}
+		
+		public int getZgyro() {
+			return zgyro;
+		}
+		
+		public void setZgyro(int zgyro) {
+			this.zgyro = zgyro;
+		}
+		
+		public int getXmag() {
+			return xmag;
+		}
+		
+		public void setXmag(int xmag) {
+			this.xmag = xmag;
+		}
+		
+		public int getYmag() {
+			return ymag;
+		}
+		
+		public void setYmag(int ymag) {
+			this.ymag = ymag;
+		}
+		
+		public int getZmag() {
+			return zmag;
+		}
+		
+		public void setZmag(int zmag) {
+			this.zmag = zmag;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
+  			xacc = buffer.getShort(); // int16_t
+  			yacc = buffer.getShort(); // int16_t
+  			zacc = buffer.getShort(); // int16_t
+  			xgyro = buffer.getShort(); // int16_t
+  			ygyro = buffer.getShort(); // int16_t
+  			zgyro = buffer.getShort(); // int16_t
+  			xmag = buffer.getShort(); // int16_t
+  			ymag = buffer.getShort(); // int16_t
+  			zmag = buffer.getShort(); // int16_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
+  			buffer.putShort((short)(xacc)); // int16_t
+  			buffer.putShort((short)(yacc)); // int16_t
+  			buffer.putShort((short)(zacc)); // int16_t
+  			buffer.putShort((short)(xgyro)); // int16_t
+  			buffer.putShort((short)(ygyro)); // int16_t
+  			buffer.putShort((short)(zgyro)); // int16_t
+  			buffer.putShort((short)(xmag)); // int16_t
+  			buffer.putShort((short)(ymag)); // int16_t
+  			buffer.putShort((short)(zmag)); // int16_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_SCALED_IMU3 { " + 
+			"time_boot_ms = " + time_boot_ms + ", " + 
+			"xacc = " + xacc + ", " + 
+			"yacc = " + yacc + ", " + 
+			"zacc = " + zacc + ", " + 
+			"xgyro = " + xgyro + ", " + 
+			"ygyro = " + ygyro + ", " + 
+			"zgyro = " + zgyro + ", " + 
+			"xmag = " + xmag + ", " + 
+			"ymag = " + ymag + ", " + 
+			"zmag = " + zmag + ",  }";
+		}
+	}
+	/*
 	 * The pressure readings for the typical setup of one absolute and differential pressure sensor. The units are as specified in each field.
 	 */
 	public static class MSG_SCALED_PRESSURE extends Message {
@@ -12506,6 +16130,10 @@ public class MAVLink {
 		private float press_diff; // Differential pressure 1 (hectopascal)
 		private int temperature; // Temperature measurement (0.01 degrees celsius)
 	
+		public MSG_SCALED_PRESSURE () {
+			super("SCALED_PRESSURE", MSG_ID_SCALED_PRESSURE);
+		}
+
 		public MSG_SCALED_PRESSURE (byte[] bytes) {
 			super(bytes, "SCALED_PRESSURE", MSG_ID_SCALED_PRESSURE);
 		}
@@ -12589,6 +16217,102 @@ public class MAVLink {
 		}
 	}
 	/*
+	 * Barometer readings for 2nd barometer
+	 */
+	public static class MSG_SCALED_PRESSURE2 extends Message {
+	
+		private long time_boot_ms; // Timestamp (milliseconds since system boot)
+		private float press_abs; // Absolute pressure (hectopascal)
+		private float press_diff; // Differential pressure 1 (hectopascal)
+		private int temperature; // Temperature measurement (0.01 degrees celsius)
+	
+		public MSG_SCALED_PRESSURE2 () {
+			super("SCALED_PRESSURE2", MSG_ID_SCALED_PRESSURE2);
+		}
+
+		public MSG_SCALED_PRESSURE2 (byte[] bytes) {
+			super(bytes, "SCALED_PRESSURE2", MSG_ID_SCALED_PRESSURE2);
+		}
+	
+		public MSG_SCALED_PRESSURE2 (short systemId, short componentId, long time_boot_ms  , float press_abs  , float press_diff  , int temperature  ) {
+			super(systemId, componentId);
+			this.time_boot_ms = time_boot_ms;
+			this.press_abs = press_abs;
+			this.press_diff = press_diff;
+			this.temperature = temperature;
+		}
+
+		@Override
+		public int getLength() {
+			return 14;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 195;
+		}
+	
+		public long getTime_boot_ms() {
+			return time_boot_ms;
+		}
+		
+		public void setTime_boot_ms(long time_boot_ms) {
+			this.time_boot_ms = time_boot_ms;
+		}
+		
+		public float getPress_abs() {
+			return press_abs;
+		}
+		
+		public void setPress_abs(float press_abs) {
+			this.press_abs = press_abs;
+		}
+		
+		public float getPress_diff() {
+			return press_diff;
+		}
+		
+		public void setPress_diff(float press_diff) {
+			this.press_diff = press_diff;
+		}
+		
+		public int getTemperature() {
+			return temperature;
+		}
+		
+		public void setTemperature(int temperature) {
+			this.temperature = temperature;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
+  			press_abs = buffer.getFloat(); // float
+  			press_diff = buffer.getFloat(); // float
+  			temperature = buffer.getShort(); // int16_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
+  			buffer.putFloat(press_abs); // float
+  			buffer.putFloat(press_diff); // float
+  			buffer.putShort((short)(temperature)); // int16_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_SCALED_PRESSURE2 { " + 
+			"time_boot_ms = " + time_boot_ms + ", " + 
+			"press_abs = " + press_abs + ", " + 
+			"press_diff = " + press_diff + ", " + 
+			"temperature = " + temperature + ",  }";
+		}
+	}
+	/*
 	 * Control a serial port. This can be used for raw access to an onboard serial peripheral such as a GPS or telemetry radio. It is designed to make it possible to update the devices firmware via MAVLink messages or change the devices settings. A message with zero bytes can be used to change just the baudrate.
 	 */
 	public static class MSG_SERIAL_CONTROL extends Message {
@@ -12598,8 +16322,12 @@ public class MAVLink {
 		private int device; // See SERIAL_CONTROL_DEV enum
 		private int flags; // See SERIAL_CONTROL_FLAG enum
 		private int count; // how many bytes in this transfer
-		private int data[] = new int[70]; // serial data
+		private int[] data = new int[70]; // serial data
 	
+		public MSG_SERIAL_CONTROL () {
+			super("SERIAL_CONTROL", MSG_ID_SERIAL_CONTROL);
+		}
+
 		public MSG_SERIAL_CONTROL (byte[] bytes) {
 			super(bytes, "SERIAL_CONTROL", MSG_ID_SERIAL_CONTROL);
 		}
@@ -12728,6 +16456,10 @@ public class MAVLink {
 		private int servo8_raw; // Servo output 8 value, in microseconds
 		private int port; // Servo output port (set of 8 outputs = 1 port). Most MAVs will just use one, but this allows to encode more than 8 servos.
 	
+		public MSG_SERVO_OUTPUT_RAW () {
+			super("SERVO_OUTPUT_RAW", MSG_ID_SERVO_OUTPUT_RAW);
+		}
+
 		public MSG_SERVO_OUTPUT_RAW (byte[] bytes) {
 			super(bytes, "SERVO_OUTPUT_RAW", MSG_ID_SERVO_OUTPUT_RAW);
 		}
@@ -12885,10 +16617,125 @@ public class MAVLink {
 	/*
 	 * Set the vehicle attitude and body angular rates.
 	 */
+	public static class MSG_SET_ACTUATOR_CONTROL_TARGET extends Message {
+	
+		private long time_usec; // Timestamp (micros since boot or Unix epoch)
+		private float[] controls = new float[8]; // Actuator controls. Normed to -1..+1 where 0 is neutral position. Throttle for single rotation direction motors is 0..1, negative range for reverse direction. Standard mapping for attitude controls (group 0): (index 0-7): roll, pitch, yaw, throttle, flaps, spoilers, airbrakes, landing gear. Load a pass-through mixer to repurpose them as generic outputs.
+		private int group_mlx; // Actuator group. The "_mlx" indicates this is a multi-instance message and a MAVLink parser should use this field to difference between instances.
+		private int target_system; // System ID
+		private int target_component; // Component ID
+	
+		public MSG_SET_ACTUATOR_CONTROL_TARGET () {
+			super("SET_ACTUATOR_CONTROL_TARGET", MSG_ID_SET_ACTUATOR_CONTROL_TARGET);
+		}
+
+		public MSG_SET_ACTUATOR_CONTROL_TARGET (byte[] bytes) {
+			super(bytes, "SET_ACTUATOR_CONTROL_TARGET", MSG_ID_SET_ACTUATOR_CONTROL_TARGET);
+		}
+	
+		public MSG_SET_ACTUATOR_CONTROL_TARGET (short systemId, short componentId, long time_usec  , float controls [] , int group_mlx  , int target_system  , int target_component  ) {
+			super(systemId, componentId);
+			this.time_usec = time_usec;
+			this.controls = controls;
+			this.group_mlx = group_mlx;
+			this.target_system = target_system;
+			this.target_component = target_component;
+		}
+
+		@Override
+		public int getLength() {
+			return 71;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 168;
+		}
+	
+		public long getTime_usec() {
+			return time_usec;
+		}
+		
+		public void setTime_usec(long time_usec) {
+			this.time_usec = time_usec;
+		}
+		
+		public float[] getControls() {
+			return controls;
+		}
+		
+		public void setControls(float controls[]) {
+			this.controls = controls;
+		}
+		
+		public int getGroup_mlx() {
+			return group_mlx;
+		}
+		
+		public void setGroup_mlx(int group_mlx) {
+			this.group_mlx = group_mlx;
+		}
+		
+		public int getTarget_system() {
+			return target_system;
+		}
+		
+		public void setTarget_system(int target_system) {
+			this.target_system = target_system;
+		}
+		
+		public int getTarget_component() {
+			return target_component;
+		}
+		
+		public void setTarget_component(int target_component) {
+			this.target_component = target_component;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			time_usec = buffer.getLong(); // uint64_t
+  			for(int c=0; c<8; ++c) {
+				controls [c] = buffer.getFloat(); // float[8]
+ 			}
+			
+ 			group_mlx = (int)buffer.get() & 0xff; // uint8_t
+  			target_system = (int)buffer.get() & 0xff; // uint8_t
+  			target_component = (int)buffer.get() & 0xff; // uint8_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putLong(time_usec); // uint64_t
+  			for(int c=0; c<8; ++c) {
+				buffer.putFloat(controls [c]); // float[8]
+ 			}
+			
+ 			buffer.put((byte)(group_mlx & 0xff)); // uint8_t
+  			buffer.put((byte)(target_system & 0xff)); // uint8_t
+  			buffer.put((byte)(target_component & 0xff)); // uint8_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_SET_ACTUATOR_CONTROL_TARGET { " + 
+			"time_usec = " + time_usec + ", " + 
+			"controls = " + controls + ", " + 
+			"group_mlx = " + group_mlx + ", " + 
+			"target_system = " + target_system + ", " + 
+			"target_component = " + target_component + ",  }";
+		}
+	}
+	/*
+	 * Set the vehicle attitude and body angular rates.
+	 */
 	public static class MSG_SET_ATTITUDE_TARGET extends Message {
 	
 		private long time_boot_ms; // Timestamp in milliseconds since system boot
-		private float q[] = new float[4]; // Attitude quaternion (w, x, y, z order, zero-rotation is 1, 0, 0, 0)
+		private float[] q = new float[4]; // Attitude quaternion (w, x, y, z order, zero-rotation is 1, 0, 0, 0)
 		private float body_roll_rate; // Body roll rate in radians per second
 		private float body_pitch_rate; // Body roll rate in radians per second
 		private float body_yaw_rate; // Body roll rate in radians per second
@@ -12897,6 +16744,10 @@ public class MAVLink {
 		private int target_component; // Component ID
 		private int type_mask; // Mappings: If any of these bits are set, the corresponding input should be ignored: bit 1: body roll rate, bit 2: body pitch rate, bit 3: body yaw rate. bit 4-bit 6: reserved, bit 7: throttle, bit 8: attitude
 	
+		public MSG_SET_ATTITUDE_TARGET () {
+			super("SET_ATTITUDE_TARGET", MSG_ID_SET_ATTITUDE_TARGET);
+		}
+
 		public MSG_SET_ATTITUDE_TARGET (byte[] bytes) {
 			super(bytes, "SET_ATTITUDE_TARGET", MSG_ID_SET_ATTITUDE_TARGET);
 		}
@@ -13001,6 +16852,7 @@ public class MAVLink {
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			for(int c=0; c<4; ++c) {
+				q [c] = buffer.getFloat(); // float[4]
  			}
 			
  			body_roll_rate = buffer.getFloat(); // float
@@ -13017,6 +16869,7 @@ public class MAVLink {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			for(int c=0; c<4; ++c) {
+				buffer.putFloat(q [c]); // float[4]
  			}
 			
  			buffer.putFloat(body_roll_rate); // float
@@ -13043,6 +16896,125 @@ public class MAVLink {
 			"type_mask = " + type_mask + ",  }";
 		}
 	}
+	public static class MSG_SET_CAM_SHUTTER extends Message {
+	
+		private float gain; // Camera gain
+		private int interval; // Shutter interval, in microseconds
+		private int exposure; // Exposure time, in microseconds
+		private int cam_no; // Camera id
+		private int cam_mode; // Camera mode: 0 = auto, 1 = manual
+		private int trigger_pin; // Trigger pin, 0-3 for PtGrey FireFly
+	
+		public MSG_SET_CAM_SHUTTER () {
+			super("SET_CAM_SHUTTER", MSG_ID_SET_CAM_SHUTTER);
+		}
+
+		public MSG_SET_CAM_SHUTTER (byte[] bytes) {
+			super(bytes, "SET_CAM_SHUTTER", MSG_ID_SET_CAM_SHUTTER);
+		}
+	
+		public MSG_SET_CAM_SHUTTER (short systemId, short componentId, float gain  , int interval  , int exposure  , int cam_no  , int cam_mode  , int trigger_pin  ) {
+			super(systemId, componentId);
+			this.gain = gain;
+			this.interval = interval;
+			this.exposure = exposure;
+			this.cam_no = cam_no;
+			this.cam_mode = cam_mode;
+			this.trigger_pin = trigger_pin;
+		}
+
+		@Override
+		public int getLength() {
+			return 11;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 108;
+		}
+	
+		public float getGain() {
+			return gain;
+		}
+		
+		public void setGain(float gain) {
+			this.gain = gain;
+		}
+		
+		public int getInterval() {
+			return interval;
+		}
+		
+		public void setInterval(int interval) {
+			this.interval = interval;
+		}
+		
+		public int getExposure() {
+			return exposure;
+		}
+		
+		public void setExposure(int exposure) {
+			this.exposure = exposure;
+		}
+		
+		public int getCam_no() {
+			return cam_no;
+		}
+		
+		public void setCam_no(int cam_no) {
+			this.cam_no = cam_no;
+		}
+		
+		public int getCam_mode() {
+			return cam_mode;
+		}
+		
+		public void setCam_mode(int cam_mode) {
+			this.cam_mode = cam_mode;
+		}
+		
+		public int getTrigger_pin() {
+			return trigger_pin;
+		}
+		
+		public void setTrigger_pin(int trigger_pin) {
+			this.trigger_pin = trigger_pin;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			gain = buffer.getFloat(); // float
+  			interval = buffer.getShort() & 0xffff; // uint16_t
+  			exposure = buffer.getShort() & 0xffff; // uint16_t
+  			cam_no = (int)buffer.get() & 0xff; // uint8_t
+  			cam_mode = (int)buffer.get() & 0xff; // uint8_t
+  			trigger_pin = (int)buffer.get() & 0xff; // uint8_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putFloat(gain); // float
+  			buffer.putShort((short)(interval & 0xffff)); // uint16_t
+  			buffer.putShort((short)(exposure & 0xffff)); // uint16_t
+  			buffer.put((byte)(cam_no & 0xff)); // uint8_t
+  			buffer.put((byte)(cam_mode & 0xff)); // uint8_t
+  			buffer.put((byte)(trigger_pin & 0xff)); // uint8_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_SET_CAM_SHUTTER { " + 
+			"gain = " + gain + ", " + 
+			"interval = " + interval + ", " + 
+			"exposure = " + exposure + ", " + 
+			"cam_no = " + cam_no + ", " + 
+			"cam_mode = " + cam_mode + ", " + 
+			"trigger_pin = " + trigger_pin + ",  }";
+		}
+	}
 	/*
 	 * As local waypoints exist, the global MISSION reference allows to transform between the local coordinate frame and the global (GPS) coordinate frame. This can be necessary when e.g. in- and outdoor settings are connected and the MAV should move from in- to outdoor.
 	 */
@@ -13050,9 +17022,13 @@ public class MAVLink {
 	
 		private int latitude; // Latitude (WGS84), in degrees * 1E7
 		private int longitude; // Longitude (WGS84, in degrees * 1E7
-		private int altitude; // Altitude (WGS84), in meters * 1000 (positive for up)
+		private int altitude; // Altitude (AMSL), in meters * 1000 (positive for up)
 		private int target_system; // System ID
 	
+		public MSG_SET_GPS_GLOBAL_ORIGIN () {
+			super("SET_GPS_GLOBAL_ORIGIN", MSG_ID_SET_GPS_GLOBAL_ORIGIN);
+		}
+
 		public MSG_SET_GPS_GLOBAL_ORIGIN (byte[] bytes) {
 			super(bytes, "SET_GPS_GLOBAL_ORIGIN", MSG_ID_SET_GPS_GLOBAL_ORIGIN);
 		}
@@ -13144,6 +17120,10 @@ public class MAVLink {
 		private int target_system; // The system setting the mode
 		private int base_mode; // The new base mode
 	
+		public MSG_SET_MODE () {
+			super("SET_MODE", MSG_ID_SET_MODE);
+		}
+
 		public MSG_SET_MODE (byte[] bytes) {
 			super(bytes, "SET_MODE", MSG_ID_SET_MODE);
 		}
@@ -13215,6 +17195,128 @@ public class MAVLink {
 		}
 	}
 	/*
+	 * Message sent to the MAV to set a new offset from the currently controlled position
+	 */
+	public static class MSG_SET_POSITION_CONTROL_OFFSET extends Message {
+	
+		private float x; // x position offset
+		private float y; // y position offset
+		private float z; // z position offset
+		private float yaw; // yaw orientation offset in radians, 0 = NORTH
+		private int target_system; // System ID
+		private int target_component; // Component ID
+	
+		public MSG_SET_POSITION_CONTROL_OFFSET () {
+			super("SET_POSITION_CONTROL_OFFSET", MSG_ID_SET_POSITION_CONTROL_OFFSET);
+		}
+
+		public MSG_SET_POSITION_CONTROL_OFFSET (byte[] bytes) {
+			super(bytes, "SET_POSITION_CONTROL_OFFSET", MSG_ID_SET_POSITION_CONTROL_OFFSET);
+		}
+	
+		public MSG_SET_POSITION_CONTROL_OFFSET (short systemId, short componentId, float x  , float y  , float z  , float yaw  , int target_system  , int target_component  ) {
+			super(systemId, componentId);
+			this.x = x;
+			this.y = y;
+			this.z = z;
+			this.yaw = yaw;
+			this.target_system = target_system;
+			this.target_component = target_component;
+		}
+
+		@Override
+		public int getLength() {
+			return 18;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 22;
+		}
+	
+		public float getX() {
+			return x;
+		}
+		
+		public void setX(float x) {
+			this.x = x;
+		}
+		
+		public float getY() {
+			return y;
+		}
+		
+		public void setY(float y) {
+			this.y = y;
+		}
+		
+		public float getZ() {
+			return z;
+		}
+		
+		public void setZ(float z) {
+			this.z = z;
+		}
+		
+		public float getYaw() {
+			return yaw;
+		}
+		
+		public void setYaw(float yaw) {
+			this.yaw = yaw;
+		}
+		
+		public int getTarget_system() {
+			return target_system;
+		}
+		
+		public void setTarget_system(int target_system) {
+			this.target_system = target_system;
+		}
+		
+		public int getTarget_component() {
+			return target_component;
+		}
+		
+		public void setTarget_component(int target_component) {
+			this.target_component = target_component;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			x = buffer.getFloat(); // float
+  			y = buffer.getFloat(); // float
+  			z = buffer.getFloat(); // float
+  			yaw = buffer.getFloat(); // float
+  			target_system = (int)buffer.get() & 0xff; // uint8_t
+  			target_component = (int)buffer.get() & 0xff; // uint8_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putFloat(x); // float
+  			buffer.putFloat(y); // float
+  			buffer.putFloat(z); // float
+  			buffer.putFloat(yaw); // float
+  			buffer.put((byte)(target_system & 0xff)); // uint8_t
+  			buffer.put((byte)(target_component & 0xff)); // uint8_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_SET_POSITION_CONTROL_OFFSET { " + 
+			"x = " + x + ", " + 
+			"y = " + y + ", " + 
+			"z = " + z + ", " + 
+			"yaw = " + yaw + ", " + 
+			"target_system = " + target_system + ", " + 
+			"target_component = " + target_component + ",  }";
+		}
+	}
+	/*
 	 * Set vehicle position, velocity and acceleration setpoint in the WGS84 coordinate system.
 	 */
 	public static class MSG_SET_POSITION_TARGET_GLOBAL_INT extends Message {
@@ -13222,7 +17324,7 @@ public class MAVLink {
 		private long time_boot_ms; // Timestamp in milliseconds since system boot. The rationale for the timestamp in the setpoint is to allow the system to compensate for the transport delay of the setpoint. This allows the system to compensate processing latency.
 		private int lat_int; // X Position in WGS84 frame in 1e7 * meters
 		private int lon_int; // Y Position in WGS84 frame in 1e7 * meters
-		private float alt; // Altitude in meters in WGS84 altitude, not AMSL if absolute or relative, above terrain if GLOBAL_TERRAIN_ALT_INT
+		private float alt; // Altitude in meters in AMSL altitude, not WGS84 if absolute or relative, above terrain if GLOBAL_TERRAIN_ALT_INT
 		private float vx; // X velocity in NED frame in meter / s
 		private float vy; // Y velocity in NED frame in meter / s
 		private float vz; // Z velocity in NED frame in meter / s
@@ -13236,6 +17338,10 @@ public class MAVLink {
 		private int target_component; // Component ID
 		private int coordinate_frame; // Valid options are: MAV_FRAME_GLOBAL_INT = 5, MAV_FRAME_GLOBAL_RELATIVE_ALT_INT = 6, MAV_FRAME_GLOBAL_TERRAIN_ALT_INT = 11
 	
+		public MSG_SET_POSITION_TARGET_GLOBAL_INT () {
+			super("SET_POSITION_TARGET_GLOBAL_INT", MSG_ID_SET_POSITION_TARGET_GLOBAL_INT);
+		}
+
 		public MSG_SET_POSITION_TARGET_GLOBAL_INT (byte[] bytes) {
 			super(bytes, "SET_POSITION_TARGET_GLOBAL_INT", MSG_ID_SET_POSITION_TARGET_GLOBAL_INT);
 		}
@@ -13484,6 +17590,10 @@ public class MAVLink {
 		private int target_component; // Component ID
 		private int coordinate_frame; // Valid options are: MAV_FRAME_LOCAL_NED = 1, MAV_FRAME_LOCAL_OFFSET_NED = 7, MAV_FRAME_BODY_NED = 8, MAV_FRAME_BODY_OFFSET_NED = 9
 	
+		public MSG_SET_POSITION_TARGET_LOCAL_NED () {
+			super("SET_POSITION_TARGET_LOCAL_NED", MSG_ID_SET_POSITION_TARGET_LOCAL_NED);
+		}
+
 		public MSG_SET_POSITION_TARGET_LOCAL_NED (byte[] bytes) {
 			super(bytes, "SET_POSITION_TARGET_LOCAL_NED", MSG_ID_SET_POSITION_TARGET_LOCAL_NED);
 		}
@@ -13737,6 +17847,10 @@ public class MAVLink {
 		private float ve; // True velocity in m/s in EAST direction in earth-fixed NED frame
 		private float vd; // True velocity in m/s in DOWN direction in earth-fixed NED frame
 	
+		public MSG_SIM_STATE () {
+			super("SIM_STATE", MSG_ID_SIM_STATE);
+		}
+
 		public MSG_SIM_STATE (byte[] bytes) {
 			super(bytes, "SIM_STATE", MSG_ID_SIM_STATE);
 		}
@@ -14029,8 +18143,12 @@ public class MAVLink {
 	public static class MSG_STATUSTEXT extends Message {
 	
 		private int severity; // Severity of status. Relies on the definitions within RFC-5424. See enum MAV_SEVERITY.
-		private char text[] = new char[50]; // Status text message, without null termination character
+		private char[] text = new char[50]; // Status text message, without null termination character
 	
+		public MSG_STATUSTEXT () {
+			super("STATUSTEXT", MSG_ID_STATUSTEXT);
+		}
+
 		public MSG_STATUSTEXT (byte[] bytes) {
 			super(bytes, "STATUSTEXT", MSG_ID_STATUSTEXT);
 		}
@@ -14103,6 +18221,10 @@ public class MAVLink {
 		private long time_unix_usec; // Timestamp of the master clock in microseconds since UNIX epoch.
 		private long time_boot_ms; // Timestamp of the component clock since boot time in milliseconds.
 	
+		public MSG_SYSTEM_TIME () {
+			super("SYSTEM_TIME", MSG_ID_SYSTEM_TIME);
+		}
+
 		public MSG_SYSTEM_TIME (byte[] bytes) {
 			super(bytes, "SYSTEM_TIME", MSG_ID_SYSTEM_TIME);
 		}
@@ -14180,6 +18302,10 @@ public class MAVLink {
 		private int errors_count4; // Autopilot-specific errors
 		private int battery_remaining; // Remaining battery energy: (0%: 0, 100%: 100), -1: autopilot estimate the remaining battery
 	
+		public MSG_SYS_STATUS () {
+			super("SYS_STATUS", MSG_ID_SYS_STATUS);
+		}
+
 		public MSG_SYS_STATUS (byte[] bytes) {
 			super(bytes, "SYS_STATUS", MSG_ID_SYS_STATUS);
 		}
@@ -14378,6 +18504,10 @@ public class MAVLink {
 		private int lat; // Latitude (degrees *10^7)
 		private int lon; // Longitude (degrees *10^7)
 	
+		public MSG_TERRAIN_CHECK () {
+			super("TERRAIN_CHECK", MSG_ID_TERRAIN_CHECK);
+		}
+
 		public MSG_TERRAIN_CHECK (byte[] bytes) {
 			super(bytes, "TERRAIN_CHECK", MSG_ID_TERRAIN_CHECK);
 		}
@@ -14444,9 +18574,13 @@ public class MAVLink {
 		private int lat; // Latitude of SW corner of first grid (degrees *10^7)
 		private int lon; // Longitude of SW corner of first grid (in degrees *10^7)
 		private int grid_spacing; // Grid spacing in meters
-		private int data[] = new int[16]; // Terrain data in meters AMSL
+		private int[] data = new int[16]; // Terrain data in meters AMSL
 		private int gridbit; // bit within the terrain request mask
 	
+		public MSG_TERRAIN_DATA () {
+			super("TERRAIN_DATA", MSG_ID_TERRAIN_DATA);
+		}
+
 		public MSG_TERRAIN_DATA (byte[] bytes) {
 			super(bytes, "TERRAIN_DATA", MSG_ID_TERRAIN_DATA);
 		}
@@ -14560,6 +18694,10 @@ public class MAVLink {
 		private int pending; // Number of 4x4 terrain blocks waiting to be received or read from disk
 		private int loaded; // Number of 4x4 terrain blocks in memory
 	
+		public MSG_TERRAIN_REPORT () {
+			super("TERRAIN_REPORT", MSG_ID_TERRAIN_REPORT);
+		}
+
 		public MSG_TERRAIN_REPORT (byte[] bytes) {
 			super(bytes, "TERRAIN_REPORT", MSG_ID_TERRAIN_REPORT);
 		}
@@ -14688,6 +18826,10 @@ public class MAVLink {
 		private int lon; // Longitude of SW corner of first grid (in degrees *10^7)
 		private int grid_spacing; // Grid spacing in meters
 	
+		public MSG_TERRAIN_REQUEST () {
+			super("TERRAIN_REQUEST", MSG_ID_TERRAIN_REQUEST);
+		}
+
 		public MSG_TERRAIN_REQUEST (byte[] bytes) {
 			super(bytes, "TERRAIN_REQUEST", MSG_ID_TERRAIN_REQUEST);
 		}
@@ -14771,6 +18913,76 @@ public class MAVLink {
 		}
 	}
 	/*
+	 * Time synchronization message.
+	 */
+	public static class MSG_TIMESYNC extends Message {
+	
+		private long tc1; // Time sync timestamp 1
+		private long ts1; // Time sync timestamp 2
+	
+		public MSG_TIMESYNC () {
+			super("TIMESYNC", MSG_ID_TIMESYNC);
+		}
+
+		public MSG_TIMESYNC (byte[] bytes) {
+			super(bytes, "TIMESYNC", MSG_ID_TIMESYNC);
+		}
+	
+		public MSG_TIMESYNC (short systemId, short componentId, long tc1  , long ts1  ) {
+			super(systemId, componentId);
+			this.tc1 = tc1;
+			this.ts1 = ts1;
+		}
+
+		@Override
+		public int getLength() {
+			return 128;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 34;
+		}
+	
+		public long getTc1() {
+			return tc1;
+		}
+		
+		public void setTc1(long tc1) {
+			this.tc1 = tc1;
+		}
+		
+		public long getTs1() {
+			return ts1;
+		}
+		
+		public void setTs1(long ts1) {
+			this.ts1 = ts1;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			tc1 = buffer.getLong(); // int64_t
+  			ts1 = buffer.getLong(); // int64_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putLong(tc1); // int64_t
+  			buffer.putLong(ts1); // int64_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_TIMESYNC { " + 
+			"tc1 = " + tc1 + ", " + 
+			"ts1 = " + ts1 + ",  }";
+		}
+	}
+	/*
 	 * Message implementing parts of the V2 payload specs in V1 frames for transitional support.
 	 */
 	public static class MSG_V2_EXTENSION extends Message {
@@ -14779,8 +18991,12 @@ public class MAVLink {
 		private int target_network; // Network ID (0 for broadcast)
 		private int target_system; // System ID (0 for broadcast)
 		private int target_component; // Component ID (0 for broadcast)
-		private int payload[] = new int[249]; // Variable length payload. The length is defined by the remaining message length when subtracting the header and other fields.  The entire content of this block is opaque unless you understand any the encoding message_type.  The particular encoding used can be extension specific and might not always be documented as part of the mavlink specification.
+		private int[] payload = new int[249]; // Variable length payload. The length is defined by the remaining message length when subtracting the header and other fields.  The entire content of this block is opaque unless you understand any the encoding message_type.  The particular encoding used can be extension specific and might not always be documented as part of the mavlink specification.
 	
+		public MSG_V2_EXTENSION () {
+			super("V2_EXTENSION", MSG_ID_V2_EXTENSION);
+		}
+
 		public MSG_V2_EXTENSION (byte[] bytes) {
 			super(bytes, "V2_EXTENSION", MSG_ID_V2_EXTENSION);
 		}
@@ -14893,6 +19109,10 @@ public class MAVLink {
 		private int heading; // Current heading in degrees, in compass units (0..360, 0=north)
 		private int throttle; // Current throttle setting in integer percent, 0 to 100
 	
+		public MSG_VFR_HUD () {
+			super("VFR_HUD", MSG_ID_VFR_HUD);
+		}
+
 		public MSG_VFR_HUD (byte[] bytes) {
 			super(bytes, "VFR_HUD", MSG_ID_VFR_HUD);
 		}
@@ -15009,6 +19229,10 @@ public class MAVLink {
 		private float pitch; // Pitch angle in rad
 		private float yaw; // Yaw angle in rad
 	
+		public MSG_VICON_POSITION_ESTIMATE () {
+			super("VICON_POSITION_ESTIMATE", MSG_ID_VICON_POSITION_ESTIMATE);
+		}
+
 		public MSG_VICON_POSITION_ESTIMATE (byte[] bytes) {
 			super(bytes, "VICON_POSITION_ESTIMATE", MSG_ID_VICON_POSITION_ESTIMATE);
 		}
@@ -15137,6 +19361,10 @@ public class MAVLink {
 		private float pitch; // Pitch angle in rad
 		private float yaw; // Yaw angle in rad
 	
+		public MSG_VISION_POSITION_ESTIMATE () {
+			super("VISION_POSITION_ESTIMATE", MSG_ID_VISION_POSITION_ESTIMATE);
+		}
+
 		public MSG_VISION_POSITION_ESTIMATE (byte[] bytes) {
 			super(bytes, "VISION_POSITION_ESTIMATE", MSG_ID_VISION_POSITION_ESTIMATE);
 		}
@@ -15262,6 +19490,10 @@ public class MAVLink {
 		private float y; // Global Y speed
 		private float z; // Global Z speed
 	
+		public MSG_VISION_SPEED_ESTIMATE () {
+			super("VISION_SPEED_ESTIMATE", MSG_ID_VISION_SPEED_ESTIMATE);
+		}
+
 		public MSG_VISION_SPEED_ESTIMATE (byte[] bytes) {
 			super(bytes, "VISION_SPEED_ESTIMATE", MSG_ID_VISION_SPEED_ESTIMATE);
 		}
@@ -15342,6 +19574,403 @@ public class MAVLink {
 			"x = " + x + ", " + 
 			"y = " + y + ", " + 
 			"z = " + z + ",  }";
+		}
+	}
+	public static class MSG_WATCHDOG_COMMAND extends Message {
+	
+		private int watchdog_id; // Watchdog ID
+		private int process_id; // Process ID
+		private int target_system_id; // Target system ID
+		private int command_id; // Command ID
+	
+		public MSG_WATCHDOG_COMMAND () {
+			super("WATCHDOG_COMMAND", MSG_ID_WATCHDOG_COMMAND);
+		}
+
+		public MSG_WATCHDOG_COMMAND (byte[] bytes) {
+			super(bytes, "WATCHDOG_COMMAND", MSG_ID_WATCHDOG_COMMAND);
+		}
+	
+		public MSG_WATCHDOG_COMMAND (short systemId, short componentId, int watchdog_id  , int process_id  , int target_system_id  , int command_id  ) {
+			super(systemId, componentId);
+			this.watchdog_id = watchdog_id;
+			this.process_id = process_id;
+			this.target_system_id = target_system_id;
+			this.command_id = command_id;
+		}
+
+		@Override
+		public int getLength() {
+			return 6;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 162;
+		}
+	
+		public int getWatchdog_id() {
+			return watchdog_id;
+		}
+		
+		public void setWatchdog_id(int watchdog_id) {
+			this.watchdog_id = watchdog_id;
+		}
+		
+		public int getProcess_id() {
+			return process_id;
+		}
+		
+		public void setProcess_id(int process_id) {
+			this.process_id = process_id;
+		}
+		
+		public int getTarget_system_id() {
+			return target_system_id;
+		}
+		
+		public void setTarget_system_id(int target_system_id) {
+			this.target_system_id = target_system_id;
+		}
+		
+		public int getCommand_id() {
+			return command_id;
+		}
+		
+		public void setCommand_id(int command_id) {
+			this.command_id = command_id;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			watchdog_id = buffer.getShort() & 0xffff; // uint16_t
+  			process_id = buffer.getShort() & 0xffff; // uint16_t
+  			target_system_id = (int)buffer.get() & 0xff; // uint8_t
+  			command_id = (int)buffer.get() & 0xff; // uint8_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putShort((short)(watchdog_id & 0xffff)); // uint16_t
+  			buffer.putShort((short)(process_id & 0xffff)); // uint16_t
+  			buffer.put((byte)(target_system_id & 0xff)); // uint8_t
+  			buffer.put((byte)(command_id & 0xff)); // uint8_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_WATCHDOG_COMMAND { " + 
+			"watchdog_id = " + watchdog_id + ", " + 
+			"process_id = " + process_id + ", " + 
+			"target_system_id = " + target_system_id + ", " + 
+			"command_id = " + command_id + ",  }";
+		}
+	}
+	public static class MSG_WATCHDOG_HEARTBEAT extends Message {
+	
+		private int watchdog_id; // Watchdog ID
+		private int process_count; // Number of processes
+	
+		public MSG_WATCHDOG_HEARTBEAT () {
+			super("WATCHDOG_HEARTBEAT", MSG_ID_WATCHDOG_HEARTBEAT);
+		}
+
+		public MSG_WATCHDOG_HEARTBEAT (byte[] bytes) {
+			super(bytes, "WATCHDOG_HEARTBEAT", MSG_ID_WATCHDOG_HEARTBEAT);
+		}
+	
+		public MSG_WATCHDOG_HEARTBEAT (short systemId, short componentId, int watchdog_id  , int process_count  ) {
+			super(systemId, componentId);
+			this.watchdog_id = watchdog_id;
+			this.process_count = process_count;
+		}
+
+		@Override
+		public int getLength() {
+			return 4;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 153;
+		}
+	
+		public int getWatchdog_id() {
+			return watchdog_id;
+		}
+		
+		public void setWatchdog_id(int watchdog_id) {
+			this.watchdog_id = watchdog_id;
+		}
+		
+		public int getProcess_count() {
+			return process_count;
+		}
+		
+		public void setProcess_count(int process_count) {
+			this.process_count = process_count;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			watchdog_id = buffer.getShort() & 0xffff; // uint16_t
+  			process_count = buffer.getShort() & 0xffff; // uint16_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putShort((short)(watchdog_id & 0xffff)); // uint16_t
+  			buffer.putShort((short)(process_count & 0xffff)); // uint16_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_WATCHDOG_HEARTBEAT { " + 
+			"watchdog_id = " + watchdog_id + ", " + 
+			"process_count = " + process_count + ",  }";
+		}
+	}
+	public static class MSG_WATCHDOG_PROCESS_INFO extends Message {
+	
+		private int timeout; // Timeout (seconds)
+		private int watchdog_id; // Watchdog ID
+		private int process_id; // Process ID
+		private char[] name = new char[100]; // Process name
+		private char[] arguments = new char[147]; // Process arguments
+	
+		public MSG_WATCHDOG_PROCESS_INFO () {
+			super("WATCHDOG_PROCESS_INFO", MSG_ID_WATCHDOG_PROCESS_INFO);
+		}
+
+		public MSG_WATCHDOG_PROCESS_INFO (byte[] bytes) {
+			super(bytes, "WATCHDOG_PROCESS_INFO", MSG_ID_WATCHDOG_PROCESS_INFO);
+		}
+	
+		public MSG_WATCHDOG_PROCESS_INFO (short systemId, short componentId, int timeout  , int watchdog_id  , int process_id  , char name [] , char arguments [] ) {
+			super(systemId, componentId);
+			this.timeout = timeout;
+			this.watchdog_id = watchdog_id;
+			this.process_id = process_id;
+			this.name = name;
+			this.arguments = arguments;
+		}
+
+		@Override
+		public int getLength() {
+			return 10;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 113;
+		}
+	
+		public int getTimeout() {
+			return timeout;
+		}
+		
+		public void setTimeout(int timeout) {
+			this.timeout = timeout;
+		}
+		
+		public int getWatchdog_id() {
+			return watchdog_id;
+		}
+		
+		public void setWatchdog_id(int watchdog_id) {
+			this.watchdog_id = watchdog_id;
+		}
+		
+		public int getProcess_id() {
+			return process_id;
+		}
+		
+		public void setProcess_id(int process_id) {
+			this.process_id = process_id;
+		}
+		
+		public char[] getName() {
+			return name;
+		}
+		
+		public void setName(char name[]) {
+			this.name = name;
+		}
+		
+		public char[] getArguments() {
+			return arguments;
+		}
+		
+		public void setArguments(char arguments[]) {
+			this.arguments = arguments;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			timeout = buffer.getInt(); // int32_t
+  			watchdog_id = buffer.getShort() & 0xffff; // uint16_t
+  			process_id = buffer.getShort() & 0xffff; // uint16_t
+  			for(int c=0; c<100; ++c) {
+				name [c] =  (char)buffer.get(); // char[100]
+ 			}
+			
+ 			for(int c=0; c<147; ++c) {
+				arguments [c] =  (char)buffer.get(); // char[147]
+ 			}
+			
+  			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putInt((int)(timeout)); // int32_t
+  			buffer.putShort((short)(watchdog_id & 0xffff)); // uint16_t
+  			buffer.putShort((short)(process_id & 0xffff)); // uint16_t
+  			for(int c=0; c<100; ++c) {
+				buffer.put((byte)(name [c]));
+ 			}
+			
+ 			for(int c=0; c<147; ++c) {
+				buffer.put((byte)(arguments [c]));
+ 			}
+			
+  			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_WATCHDOG_PROCESS_INFO { " + 
+			"timeout = " + timeout + ", " + 
+			"watchdog_id = " + watchdog_id + ", " + 
+			"process_id = " + process_id + ", " + 
+			"name = " + name + ", " + 
+			"arguments = " + arguments + ",  }";
+		}
+	}
+	public static class MSG_WATCHDOG_PROCESS_STATUS extends Message {
+	
+		private int pid; // PID
+		private int watchdog_id; // Watchdog ID
+		private int process_id; // Process ID
+		private int crashes; // Number of crashes
+		private int state; // Is running / finished / suspended / crashed
+		private int muted; // Is muted
+	
+		public MSG_WATCHDOG_PROCESS_STATUS () {
+			super("WATCHDOG_PROCESS_STATUS", MSG_ID_WATCHDOG_PROCESS_STATUS);
+		}
+
+		public MSG_WATCHDOG_PROCESS_STATUS (byte[] bytes) {
+			super(bytes, "WATCHDOG_PROCESS_STATUS", MSG_ID_WATCHDOG_PROCESS_STATUS);
+		}
+	
+		public MSG_WATCHDOG_PROCESS_STATUS (short systemId, short componentId, int pid  , int watchdog_id  , int process_id  , int crashes  , int state  , int muted  ) {
+			super(systemId, componentId);
+			this.pid = pid;
+			this.watchdog_id = watchdog_id;
+			this.process_id = process_id;
+			this.crashes = crashes;
+			this.state = state;
+			this.muted = muted;
+		}
+
+		@Override
+		public int getLength() {
+			return 12;
+		}		
+	
+		@Override
+		public int getCRCExtra() {
+			return 29;
+		}
+	
+		public int getPid() {
+			return pid;
+		}
+		
+		public void setPid(int pid) {
+			this.pid = pid;
+		}
+		
+		public int getWatchdog_id() {
+			return watchdog_id;
+		}
+		
+		public void setWatchdog_id(int watchdog_id) {
+			this.watchdog_id = watchdog_id;
+		}
+		
+		public int getProcess_id() {
+			return process_id;
+		}
+		
+		public void setProcess_id(int process_id) {
+			this.process_id = process_id;
+		}
+		
+		public int getCrashes() {
+			return crashes;
+		}
+		
+		public void setCrashes(int crashes) {
+			this.crashes = crashes;
+		}
+		
+		public int getState() {
+			return state;
+		}
+		
+		public void setState(int state) {
+			this.state = state;
+		}
+		
+		public int getMuted() {
+			return muted;
+		}
+		
+		public void setMuted(int muted) {
+			this.muted = muted;
+		}
+		
+			
+		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			
+			pid = buffer.getInt(); // int32_t
+  			watchdog_id = buffer.getShort() & 0xffff; // uint16_t
+  			process_id = buffer.getShort() & 0xffff; // uint16_t
+  			crashes = buffer.getShort() & 0xffff; // uint16_t
+  			state = (int)buffer.get() & 0xff; // uint8_t
+  			muted = (int)buffer.get() & 0xff; // uint8_t
+   			return buffer;
+		}
+			
+		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+			
+			buffer.putInt((int)(pid)); // int32_t
+  			buffer.putShort((short)(watchdog_id & 0xffff)); // uint16_t
+  			buffer.putShort((short)(process_id & 0xffff)); // uint16_t
+  			buffer.putShort((short)(crashes & 0xffff)); // uint16_t
+  			buffer.put((byte)(state & 0xff)); // uint8_t
+  			buffer.put((byte)(muted & 0xff)); // uint8_t
+   			return buffer;
+		}
+		
+		@Override
+		public String toString() {
+			return "MSG_WATCHDOG_PROCESS_STATUS { " + 
+			"pid = " + pid + ", " + 
+			"watchdog_id = " + watchdog_id + ", " + 
+			"process_id = " + process_id + ", " + 
+			"crashes = " + crashes + ", " + 
+			"state = " + state + ", " + 
+			"muted = " + muted + ",  }";
 		}
 	}
 
