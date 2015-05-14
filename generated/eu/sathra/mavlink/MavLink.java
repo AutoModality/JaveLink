@@ -1,4 +1,4 @@
-package eu.sathra.mavlink;
+package com.automodality.message;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -620,18 +620,14 @@ public class MAVLink {
 	public static final short MSG_ID_WATCHDOG_PROCESS_INFO = 181;
 	public static final short MSG_ID_WATCHDOG_PROCESS_STATUS = 182;
 
-	public static abstract class Message {
+	public static abstract class Message extends AMMAVLink {
 		
-		protected short messageId;
-		protected String messageName;
-		protected short systemId;
-		protected short componentId;
-		protected short sequenceIndex;
-	
+		protected String msgName;
+		
 		public static Message decodeMessage(byte[] bytes) {
-			short messageId = (short)(bytes[5] & 0xFF);
+			short msg = (short)(bytes[5] & 0xFF);
 		
-			switch(messageId) {
+			switch(msg) {
 					case MSG_ID_ACTUATOR_CONTROL_TARGET: 
 						return new MSG_ACTUATOR_CONTROL_TARGET ().decode(bytes);
 					case MSG_ID_ATTITUDE: 
@@ -902,38 +898,37 @@ public class MAVLink {
 						return new MSG_WATCHDOG_PROCESS_INFO ().decode(bytes);
 					case MSG_ID_WATCHDOG_PROCESS_STATUS: 
 						return new MSG_WATCHDOG_PROCESS_STATUS ().decode(bytes);
-					default: throw new IllegalArgumentException("Message with id=" + messageId + " is not supported.");
+					default: throw new IllegalArgumentException("Message with id=" + msg + " is not supported.");
 			}
 		}
 	
-		protected Message(String messageName, short messageId)
+		protected Message(short msg, short lngth, String msgName)
 		{
-			this.messageName = messageName;
-			this.messageId = messageId;			
+			this.msg = msg;			
+			this.lngth = lngth;
+			this.msgName = msgName;
 		}
 		
-		protected Message(byte[] bytes, String messageName, short messageId) {
-			this.messageName = messageName;
-			this.messageId = messageId;
+		protected Message(byte[] bytes, short msg, short lngth, String msgName) {
+			this.msg = msg;
+			this.lngth = lngth;
+			this.msgName = msgName;
 			decode(bytes);
 		}
 		
-		protected Message(short systemId, short componentId) {
-			this.systemId = systemId;
-			this.componentId = componentId;
+		protected Message(short sys, short comp, short lngth, String msgName) {
+			this.sys = sys;
+			this.lngth = lngth;
+			this.msgName = msgName;
+			this.comp = Component.getNameValueOf(comp);
 		}
 	
-		public short getMessageId() {
-			return messageId;
-		}
-	
-		public String getMessageName() {
-			return messageName;
-		}
-	
-		public abstract int getLength();
-		
 		public abstract int getCRCExtra();
+		
+		public String getMsgName()
+		{
+			return msgName;
+		}
 		
 		protected abstract ByteBuffer decodePayload(ByteBuffer buffer);
 		
@@ -948,15 +943,17 @@ public class MAVLink {
 					PACKET_START_SIGN + " got: " + startSign);
 			}
 			
-			buffer.get(); // payload length, ignore
-			this.sequenceIndex = (short)(buffer.get() & 0xFF);
-			this.systemId = (short)(buffer.get() & 0xFF);
-			this.componentId = (short)(buffer.get() & 0xFF);
+			this.lngth = (short)(buffer.get() & 0xFF);
+			// TODO: validate against known length for given msgID
+			
+			this.sqnc = (short)(buffer.get() & 0xFF);
+			this.sys = (short)(buffer.get() & 0xFF);
+			this.comp = Component.getNameValueOf(buffer.get() & 0xFF);
 			
 			short tmp = (short)(buffer.get() & 0xFF); // messageID not used
-			if(tmp != getMessageId()) {
+			if(tmp != getMsg()) {
 				throw new IllegalArgumentException("Invalid message id. Expected: " + 
-					getMessageId() + " got: " + messageId);
+					getMsg() + " got: " + msg);
 			 }
 			
 			decodePayload(buffer);
@@ -965,29 +962,29 @@ public class MAVLink {
 			return this;	
 		}
 
-		protected abstract ByteBuffer encodePayload(ByteBuffer buffer);
+		public abstract ByteBuffer encodePayload(ByteBuffer buffer);
 		
 		public byte[] encode() {
-			ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH+getLength());
+			ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH+getLngth());
 			buffer.order(ByteOrder.LITTLE_ENDIAN);
 			
-			this.setSequenceIndex((short)0x4E); // TMP
+			this.setSqnc((short)0x4E); // TMP
 			
 			buffer.put((byte)(PACKET_START_SIGN & 0xFF));
-			buffer.put((byte)(getLength() & 0xFF));
-			buffer.put((byte)(getSequenceIndex() & 0xFF));//sequence
-			buffer.put((byte)(getSystemId() & 0xFF));
-			buffer.put((byte)(getComponentId() & 0xFF));
-			buffer.put((byte)(getMessageId() & 0xFF));
+			buffer.put((byte)(getLngth() & 0xFF));
+			buffer.put((byte)(getSqnc() & 0xFF));//sequence
+			buffer.put((byte)(getSys() & 0xFF));
+			buffer.put((byte)(Component.getIDValueOf(getComp()) & 0xFF));
+			buffer.put((byte)(getMsg() & 0xFF));
 			encodePayload(buffer);
 			
 			// Calculate CRC
 			buffer.put((byte)(getCRCExtra() & 0xFF));
 			
-			byte[] bytes = new byte[HEADER_LENGTH+getLength()];
+			byte[] bytes = new byte[HEADER_LENGTH+getLngth()];
 			buffer.rewind();
 			buffer.get(bytes);
-
+			
 			int crc = getCRC(bytes, 1, bytes.length-1);
 			bytes[bytes.length-2] = (byte)((crc>>8)&0xFF);
 			bytes[bytes.length-1] = (byte)((crc)&0xFF);
@@ -995,46 +992,34 @@ public class MAVLink {
 			return bytes;
 		}
 		
-		public static byte[] encode(short length, short sequenceIndex, short systemId, short componentId, short messageId, byte[] payload, int crc) {
-			ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH+length);
+		public static byte[] encode(short lngth, short sqnc, short sys, short comp, short msg, byte[] payload, int crcExtra) {
+			ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH+lngth);
 			buffer.order(ByteOrder.LITTLE_ENDIAN);
 			
 			buffer.put((byte)(PACKET_START_SIGN & 0xFF));
-			buffer.put((byte)(length & 0xFF));
-			buffer.put((byte)(sequenceIndex & 0xFF));//sequence
-			buffer.put((byte)(systemId & 0xFF));
-			buffer.put((byte)(componentId & 0xFF));
-			buffer.put((byte)(messageId & 0xFF));
+			buffer.put((byte)(lngth & 0xFF));
+			buffer.put((byte)(sqnc & 0xFF));//sequence
+			buffer.put((byte)(sys & 0xFF));
+			buffer.put((byte)(comp & 0xFF));
+			buffer.put((byte)(msg & 0xFF));
 			for(byte b: payload)
 			{
 				buffer.put(b);
 			}	
-			byte[] bytes = new byte[HEADER_LENGTH+length];
+			
+			// Calculate CRC
+			buffer.put((byte)(crcExtra & 0xFF));
+			byte[] bytes = new byte[HEADER_LENGTH+lngth];
 			buffer.rewind();
 			buffer.get(bytes);
+			int crc = getCRC(bytes, 1, bytes.length-1);
 			bytes[bytes.length-2] = (byte)((crc>>8)&0xFF);
 			bytes[bytes.length-1] = (byte)((crc)&0xFF);
 
 			return bytes;
 		}
 
-		public void setSequenceIndex(short index) {
-			sequenceIndex = index;
-		}
-		
-		public short getSequenceIndex() {
-			return sequenceIndex;
-		}
-		
-		public short getSystemId() {
-			return systemId;
-		}
-		
-		public short getComponentId() {
-			return componentId;
-		}
-		
-		private int getCRC(byte[] bytes, int offset, int length) {
+		private static int getCRC(byte[] bytes, int offset, int length) {
 			int crc = 0xffff;
 			
 			for(int c=offset; c<length; ++c) {
@@ -1060,25 +1045,20 @@ public class MAVLink {
 		private int group_mlx; // Actuator group. The "_mlx" indicates this is a multi-instance message and a MAVLink parser should use this field to difference between instances.
 	
 		public MSG_ACTUATOR_CONTROL_TARGET () {
-			super("ACTUATOR_CONTROL_TARGET", MSG_ID_ACTUATOR_CONTROL_TARGET);
+			super(MSG_ID_ACTUATOR_CONTROL_TARGET, (short)69, "ACTUATOR_CONTROL_TARGET");
 		}
 
 		public MSG_ACTUATOR_CONTROL_TARGET (byte[] bytes) {
-			super(bytes, "ACTUATOR_CONTROL_TARGET", MSG_ID_ACTUATOR_CONTROL_TARGET);
+			super(bytes, MSG_ID_ACTUATOR_CONTROL_TARGET, (short)69, "ACTUATOR_CONTROL_TARGET");
 		}
 	
-		public MSG_ACTUATOR_CONTROL_TARGET (short systemId, short componentId, long time_usec  , float controls [] , int group_mlx  ) {
-			super(systemId, componentId);
+		public MSG_ACTUATOR_CONTROL_TARGET (short sys, short comp, long time_usec  , float controls [] , int group_mlx  ) {
+			super(sys, comp, (short)69, "ACTUATOR_CONTROL_TARGET");
 			this.time_usec = time_usec;
 			this.controls = controls;
 			this.group_mlx = group_mlx;
 		}
 
-		@Override
-		public int getLength() {
-			return 69;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 181;
@@ -1110,6 +1090,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "ACTUATOR_CONTROL_TARGET";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			for(int c=0; c<8; ++c) {
@@ -1120,7 +1101,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			for(int c=0; c<8; ++c) {
@@ -1153,15 +1134,15 @@ public class MAVLink {
 		private float yawspeed; // Yaw angular speed (rad/s)
 	
 		public MSG_ATTITUDE () {
-			super("ATTITUDE", MSG_ID_ATTITUDE);
+			super(MSG_ID_ATTITUDE, (short)28, "ATTITUDE");
 		}
 
 		public MSG_ATTITUDE (byte[] bytes) {
-			super(bytes, "ATTITUDE", MSG_ID_ATTITUDE);
+			super(bytes, MSG_ID_ATTITUDE, (short)28, "ATTITUDE");
 		}
 	
-		public MSG_ATTITUDE (short systemId, short componentId, long time_boot_ms  , float roll  , float pitch  , float yaw  , float rollspeed  , float pitchspeed  , float yawspeed  ) {
-			super(systemId, componentId);
+		public MSG_ATTITUDE (short sys, short comp, long time_boot_ms  , float roll  , float pitch  , float yaw  , float rollspeed  , float pitchspeed  , float yawspeed  ) {
+			super(sys, comp, (short)28, "ATTITUDE");
 			this.time_boot_ms = time_boot_ms;
 			this.roll = roll;
 			this.pitch = pitch;
@@ -1171,11 +1152,6 @@ public class MAVLink {
 			this.yawspeed = yawspeed;
 		}
 
-		@Override
-		public int getLength() {
-			return 28;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 39;
@@ -1239,6 +1215,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "ATTITUDE";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			roll = buffer.getFloat(); // float
@@ -1250,7 +1227,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putFloat(roll); // float
@@ -1287,15 +1264,15 @@ public class MAVLink {
 		private int thrust_manual; // thrust auto:0, manual:1
 	
 		public MSG_ATTITUDE_CONTROL () {
-			super("ATTITUDE_CONTROL", MSG_ID_ATTITUDE_CONTROL);
+			super(MSG_ID_ATTITUDE_CONTROL, (short)21, "ATTITUDE_CONTROL");
 		}
 
 		public MSG_ATTITUDE_CONTROL (byte[] bytes) {
-			super(bytes, "ATTITUDE_CONTROL", MSG_ID_ATTITUDE_CONTROL);
+			super(bytes, MSG_ID_ATTITUDE_CONTROL, (short)21, "ATTITUDE_CONTROL");
 		}
 	
-		public MSG_ATTITUDE_CONTROL (short systemId, short componentId, float roll  , float pitch  , float yaw  , float thrust  , int target  , int roll_manual  , int pitch_manual  , int yaw_manual  , int thrust_manual  ) {
-			super(systemId, componentId);
+		public MSG_ATTITUDE_CONTROL (short sys, short comp, float roll  , float pitch  , float yaw  , float thrust  , int target  , int roll_manual  , int pitch_manual  , int yaw_manual  , int thrust_manual  ) {
+			super(sys, comp, (short)21, "ATTITUDE_CONTROL");
 			this.roll = roll;
 			this.pitch = pitch;
 			this.yaw = yaw;
@@ -1307,11 +1284,6 @@ public class MAVLink {
 			this.thrust_manual = thrust_manual;
 		}
 
-		@Override
-		public int getLength() {
-			return 21;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 254;
@@ -1391,6 +1363,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "ATTITUDE_CONTROL";
 			
 			roll = buffer.getFloat(); // float
   			pitch = buffer.getFloat(); // float
@@ -1404,7 +1377,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(roll); // float
   			buffer.putFloat(pitch); // float
@@ -1447,15 +1420,15 @@ public class MAVLink {
 		private float yawspeed; // Yaw angular speed (rad/s)
 	
 		public MSG_ATTITUDE_QUATERNION () {
-			super("ATTITUDE_QUATERNION", MSG_ID_ATTITUDE_QUATERNION);
+			super(MSG_ID_ATTITUDE_QUATERNION, (short)32, "ATTITUDE_QUATERNION");
 		}
 
 		public MSG_ATTITUDE_QUATERNION (byte[] bytes) {
-			super(bytes, "ATTITUDE_QUATERNION", MSG_ID_ATTITUDE_QUATERNION);
+			super(bytes, MSG_ID_ATTITUDE_QUATERNION, (short)32, "ATTITUDE_QUATERNION");
 		}
 	
-		public MSG_ATTITUDE_QUATERNION (short systemId, short componentId, long time_boot_ms  , float q1  , float q2  , float q3  , float q4  , float rollspeed  , float pitchspeed  , float yawspeed  ) {
-			super(systemId, componentId);
+		public MSG_ATTITUDE_QUATERNION (short sys, short comp, long time_boot_ms  , float q1  , float q2  , float q3  , float q4  , float rollspeed  , float pitchspeed  , float yawspeed  ) {
+			super(sys, comp, (short)32, "ATTITUDE_QUATERNION");
 			this.time_boot_ms = time_boot_ms;
 			this.q1 = q1;
 			this.q2 = q2;
@@ -1466,11 +1439,6 @@ public class MAVLink {
 			this.yawspeed = yawspeed;
 		}
 
-		@Override
-		public int getLength() {
-			return 32;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 246;
@@ -1542,6 +1510,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "ATTITUDE_QUATERNION";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			q1 = buffer.getFloat(); // float
@@ -1554,7 +1523,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putFloat(q1); // float
@@ -1593,15 +1562,15 @@ public class MAVLink {
 		private float[] covariance = new float[9]; // Attitude covariance
 	
 		public MSG_ATTITUDE_QUATERNION_COV () {
-			super("ATTITUDE_QUATERNION_COV", MSG_ID_ATTITUDE_QUATERNION_COV);
+			super(MSG_ID_ATTITUDE_QUATERNION_COV, (short)24, "ATTITUDE_QUATERNION_COV");
 		}
 
 		public MSG_ATTITUDE_QUATERNION_COV (byte[] bytes) {
-			super(bytes, "ATTITUDE_QUATERNION_COV", MSG_ID_ATTITUDE_QUATERNION_COV);
+			super(bytes, MSG_ID_ATTITUDE_QUATERNION_COV, (short)24, "ATTITUDE_QUATERNION_COV");
 		}
 	
-		public MSG_ATTITUDE_QUATERNION_COV (short systemId, short componentId, long time_boot_ms  , float q [] , float rollspeed  , float pitchspeed  , float yawspeed  , float covariance [] ) {
-			super(systemId, componentId);
+		public MSG_ATTITUDE_QUATERNION_COV (short sys, short comp, long time_boot_ms  , float q [] , float rollspeed  , float pitchspeed  , float yawspeed  , float covariance [] ) {
+			super(sys, comp, (short)24, "ATTITUDE_QUATERNION_COV");
 			this.time_boot_ms = time_boot_ms;
 			this.q = q;
 			this.rollspeed = rollspeed;
@@ -1610,11 +1579,6 @@ public class MAVLink {
 			this.covariance = covariance;
 		}
 
-		@Override
-		public int getLength() {
-			return 24;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 153;
@@ -1670,6 +1634,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "ATTITUDE_QUATERNION_COV";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			for(int c=0; c<4; ++c) {
@@ -1686,7 +1651,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			for(int c=0; c<4; ++c) {
@@ -1728,15 +1693,15 @@ public class MAVLink {
 		private int type_mask; // Mappings: If any of these bits are set, the corresponding input should be ignored: bit 1: body roll rate, bit 2: body pitch rate, bit 3: body yaw rate. bit 4-bit 7: reserved, bit 8: attitude
 	
 		public MSG_ATTITUDE_TARGET () {
-			super("ATTITUDE_TARGET", MSG_ID_ATTITUDE_TARGET);
+			super(MSG_ID_ATTITUDE_TARGET, (short)25, "ATTITUDE_TARGET");
 		}
 
 		public MSG_ATTITUDE_TARGET (byte[] bytes) {
-			super(bytes, "ATTITUDE_TARGET", MSG_ID_ATTITUDE_TARGET);
+			super(bytes, MSG_ID_ATTITUDE_TARGET, (short)25, "ATTITUDE_TARGET");
 		}
 	
-		public MSG_ATTITUDE_TARGET (short systemId, short componentId, long time_boot_ms  , float q [] , float body_roll_rate  , float body_pitch_rate  , float body_yaw_rate  , float thrust  , int type_mask  ) {
-			super(systemId, componentId);
+		public MSG_ATTITUDE_TARGET (short sys, short comp, long time_boot_ms  , float q [] , float body_roll_rate  , float body_pitch_rate  , float body_yaw_rate  , float thrust  , int type_mask  ) {
+			super(sys, comp, (short)25, "ATTITUDE_TARGET");
 			this.time_boot_ms = time_boot_ms;
 			this.q = q;
 			this.body_roll_rate = body_roll_rate;
@@ -1746,11 +1711,6 @@ public class MAVLink {
 			this.type_mask = type_mask;
 		}
 
-		@Override
-		public int getLength() {
-			return 25;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 22;
@@ -1814,6 +1774,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "ATTITUDE_TARGET";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			for(int c=0; c<4; ++c) {
@@ -1828,7 +1789,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			for(int c=0; c<4; ++c) {
@@ -1867,15 +1828,15 @@ public class MAVLink {
 		private float z; // Z position in meters (NED)
 	
 		public MSG_ATT_POS_MOCAP () {
-			super("ATT_POS_MOCAP", MSG_ID_ATT_POS_MOCAP);
+			super(MSG_ID_ATT_POS_MOCAP, (short)80, "ATT_POS_MOCAP");
 		}
 
 		public MSG_ATT_POS_MOCAP (byte[] bytes) {
-			super(bytes, "ATT_POS_MOCAP", MSG_ID_ATT_POS_MOCAP);
+			super(bytes, MSG_ID_ATT_POS_MOCAP, (short)80, "ATT_POS_MOCAP");
 		}
 	
-		public MSG_ATT_POS_MOCAP (short systemId, short componentId, long time_usec  , float q [] , float x  , float y  , float z  ) {
-			super(systemId, componentId);
+		public MSG_ATT_POS_MOCAP (short sys, short comp, long time_usec  , float q [] , float x  , float y  , float z  ) {
+			super(sys, comp, (short)80, "ATT_POS_MOCAP");
 			this.time_usec = time_usec;
 			this.q = q;
 			this.x = x;
@@ -1883,11 +1844,6 @@ public class MAVLink {
 			this.z = z;
 		}
 
-		@Override
-		public int getLength() {
-			return 80;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 109;
@@ -1935,6 +1891,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "ATT_POS_MOCAP";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			for(int c=0; c<4; ++c) {
@@ -1947,7 +1904,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			for(int c=0; c<4; ++c) {
@@ -1978,23 +1935,18 @@ public class MAVLink {
 		private char[] key = new char[32]; // key
 	
 		public MSG_AUTH_KEY () {
-			super("AUTH_KEY", MSG_ID_AUTH_KEY);
+			super(MSG_ID_AUTH_KEY, (short)1, "AUTH_KEY");
 		}
 
 		public MSG_AUTH_KEY (byte[] bytes) {
-			super(bytes, "AUTH_KEY", MSG_ID_AUTH_KEY);
+			super(bytes, MSG_ID_AUTH_KEY, (short)1, "AUTH_KEY");
 		}
 	
-		public MSG_AUTH_KEY (short systemId, short componentId, char key [] ) {
-			super(systemId, componentId);
+		public MSG_AUTH_KEY (short sys, short comp, char key [] ) {
+			super(sys, comp, (short)1, "AUTH_KEY");
 			this.key = key;
 		}
 
-		@Override
-		public int getLength() {
-			return 1;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 119;
@@ -2010,6 +1962,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "AUTH_KEY";
 			
 			for(int c=0; c<32; ++c) {
 				key [c] =  (char)buffer.get(); // char[32]
@@ -2018,7 +1971,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			for(int c=0; c<32; ++c) {
 				buffer.put((byte)(key [c]));
@@ -2051,15 +2004,15 @@ public class MAVLink {
 		private int[] os_custom_version = new int[8]; // Custom version field, commonly the first 8 bytes of the git hash. This is not an unique identifier, but should allow to identify the commit using the main version number even for very large code bases.
 	
 		public MSG_AUTOPILOT_VERSION () {
-			super("AUTOPILOT_VERSION", MSG_ID_AUTOPILOT_VERSION);
+			super(MSG_ID_AUTOPILOT_VERSION, (short)151, "AUTOPILOT_VERSION");
 		}
 
 		public MSG_AUTOPILOT_VERSION (byte[] bytes) {
-			super(bytes, "AUTOPILOT_VERSION", MSG_ID_AUTOPILOT_VERSION);
+			super(bytes, MSG_ID_AUTOPILOT_VERSION, (short)151, "AUTOPILOT_VERSION");
 		}
 	
-		public MSG_AUTOPILOT_VERSION (short systemId, short componentId, long capabilities  , long uid  , long flight_sw_version  , long middleware_sw_version  , long os_sw_version  , long board_version  , int vendor_id  , int product_id  , int flight_custom_version [] , int middleware_custom_version [] , int os_custom_version [] ) {
-			super(systemId, componentId);
+		public MSG_AUTOPILOT_VERSION (short sys, short comp, long capabilities  , long uid  , long flight_sw_version  , long middleware_sw_version  , long os_sw_version  , long board_version  , int vendor_id  , int product_id  , int flight_custom_version [] , int middleware_custom_version [] , int os_custom_version [] ) {
+			super(sys, comp, (short)151, "AUTOPILOT_VERSION");
 			this.capabilities = capabilities;
 			this.uid = uid;
 			this.flight_sw_version = flight_sw_version;
@@ -2073,11 +2026,6 @@ public class MAVLink {
 			this.os_custom_version = os_custom_version;
 		}
 
-		@Override
-		public int getLength() {
-			return 151;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 178;
@@ -2173,6 +2121,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "AUTOPILOT_VERSION";
 			
 			capabilities = buffer.getLong(); // uint64_t
   			uid = buffer.getLong(); // uint64_t
@@ -2197,7 +2146,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(capabilities); // uint64_t
   			buffer.putLong(uid); // uint64_t
@@ -2254,15 +2203,15 @@ public class MAVLink {
 		private int battery_remaining; // Remaining battery energy: (0%: 0, 100%: 100), -1: autopilot does not estimate the remaining battery
 	
 		public MSG_BATTERY_STATUS () {
-			super("BATTERY_STATUS", MSG_ID_BATTERY_STATUS);
+			super(MSG_ID_BATTERY_STATUS, (short)18, "BATTERY_STATUS");
 		}
 
 		public MSG_BATTERY_STATUS (byte[] bytes) {
-			super(bytes, "BATTERY_STATUS", MSG_ID_BATTERY_STATUS);
+			super(bytes, MSG_ID_BATTERY_STATUS, (short)18, "BATTERY_STATUS");
 		}
 	
-		public MSG_BATTERY_STATUS (short systemId, short componentId, int current_consumed  , int energy_consumed  , int temperature  , int voltages [] , int current_battery  , int id  , int battery_function  , int type  , int battery_remaining  ) {
-			super(systemId, componentId);
+		public MSG_BATTERY_STATUS (short sys, short comp, int current_consumed  , int energy_consumed  , int temperature  , int voltages [] , int current_battery  , int id  , int battery_function  , int type  , int battery_remaining  ) {
+			super(sys, comp, (short)18, "BATTERY_STATUS");
 			this.current_consumed = current_consumed;
 			this.energy_consumed = energy_consumed;
 			this.temperature = temperature;
@@ -2274,11 +2223,6 @@ public class MAVLink {
 			this.battery_remaining = battery_remaining;
 		}
 
-		@Override
-		public int getLength() {
-			return 18;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 154;
@@ -2358,6 +2302,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "BATTERY_STATUS";
 			
 			current_consumed = buffer.getInt(); // int32_t
   			energy_consumed = buffer.getInt(); // int32_t
@@ -2374,7 +2319,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(current_consumed)); // int32_t
   			buffer.putInt((int)(energy_consumed)); // int32_t
@@ -2417,15 +2362,15 @@ public class MAVLink {
 		private int[] descriptor = new int[32]; // Descriptor
 	
 		public MSG_BRIEF_FEATURE () {
-			super("BRIEF_FEATURE", MSG_ID_BRIEF_FEATURE);
+			super(MSG_ID_BRIEF_FEATURE, (short)22, "BRIEF_FEATURE");
 		}
 
 		public MSG_BRIEF_FEATURE (byte[] bytes) {
-			super(bytes, "BRIEF_FEATURE", MSG_ID_BRIEF_FEATURE);
+			super(bytes, MSG_ID_BRIEF_FEATURE, (short)22, "BRIEF_FEATURE");
 		}
 	
-		public MSG_BRIEF_FEATURE (short systemId, short componentId, float x  , float y  , float z  , float response  , int size  , int orientation  , int orientation_assignment  , int descriptor [] ) {
-			super(systemId, componentId);
+		public MSG_BRIEF_FEATURE (short sys, short comp, float x  , float y  , float z  , float response  , int size  , int orientation  , int orientation_assignment  , int descriptor [] ) {
+			super(sys, comp, (short)22, "BRIEF_FEATURE");
 			this.x = x;
 			this.y = y;
 			this.z = z;
@@ -2436,11 +2381,6 @@ public class MAVLink {
 			this.descriptor = descriptor;
 		}
 
-		@Override
-		public int getLength() {
-			return 22;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 88;
@@ -2512,6 +2452,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "BRIEF_FEATURE";
 			
 			x = buffer.getFloat(); // float
   			y = buffer.getFloat(); // float
@@ -2527,7 +2468,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(x); // float
   			buffer.putFloat(y); // float
@@ -2565,24 +2506,19 @@ public class MAVLink {
 		private long seq; // Image frame sequence
 	
 		public MSG_CAMERA_TRIGGER () {
-			super("CAMERA_TRIGGER", MSG_ID_CAMERA_TRIGGER);
+			super(MSG_ID_CAMERA_TRIGGER, (short)68, "CAMERA_TRIGGER");
 		}
 
 		public MSG_CAMERA_TRIGGER (byte[] bytes) {
-			super(bytes, "CAMERA_TRIGGER", MSG_ID_CAMERA_TRIGGER);
+			super(bytes, MSG_ID_CAMERA_TRIGGER, (short)68, "CAMERA_TRIGGER");
 		}
 	
-		public MSG_CAMERA_TRIGGER (short systemId, short componentId, long time_usec  , long seq  ) {
-			super(systemId, componentId);
+		public MSG_CAMERA_TRIGGER (short sys, short comp, long time_usec  , long seq  ) {
+			super(sys, comp, (short)68, "CAMERA_TRIGGER");
 			this.time_usec = time_usec;
 			this.seq = seq;
 		}
 
-		@Override
-		public int getLength() {
-			return 68;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 174;
@@ -2606,13 +2542,14 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "CAMERA_TRIGGER";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			seq = buffer.getInt() & 0xffffffff; // uint32_t
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			buffer.putInt((int)(seq & 0xffffffff)); // uint32_t
@@ -2637,26 +2574,21 @@ public class MAVLink {
 		private char[] passkey = new char[25]; // Password / Key, depending on version plaintext or encrypted. 25 or less characters, NULL terminated. The characters may involve A-Z, a-z, 0-9, and "!?,.-"
 	
 		public MSG_CHANGE_OPERATOR_CONTROL () {
-			super("CHANGE_OPERATOR_CONTROL", MSG_ID_CHANGE_OPERATOR_CONTROL);
+			super(MSG_ID_CHANGE_OPERATOR_CONTROL, (short)4, "CHANGE_OPERATOR_CONTROL");
 		}
 
 		public MSG_CHANGE_OPERATOR_CONTROL (byte[] bytes) {
-			super(bytes, "CHANGE_OPERATOR_CONTROL", MSG_ID_CHANGE_OPERATOR_CONTROL);
+			super(bytes, MSG_ID_CHANGE_OPERATOR_CONTROL, (short)4, "CHANGE_OPERATOR_CONTROL");
 		}
 	
-		public MSG_CHANGE_OPERATOR_CONTROL (short systemId, short componentId, int target_system  , int control_request  , int version  , char passkey [] ) {
-			super(systemId, componentId);
+		public MSG_CHANGE_OPERATOR_CONTROL (short sys, short comp, int target_system  , int control_request  , int version  , char passkey [] ) {
+			super(sys, comp, (short)4, "CHANGE_OPERATOR_CONTROL");
 			this.target_system = target_system;
 			this.control_request = control_request;
 			this.version = version;
 			this.passkey = passkey;
 		}
 
-		@Override
-		public int getLength() {
-			return 4;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 217;
@@ -2696,6 +2628,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "CHANGE_OPERATOR_CONTROL";
 			
 			target_system = (int)buffer.get() & 0xff; // uint8_t
   			control_request = (int)buffer.get() & 0xff; // uint8_t
@@ -2707,7 +2640,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.put((byte)(target_system & 0xff)); // uint8_t
   			buffer.put((byte)(control_request & 0xff)); // uint8_t
@@ -2738,25 +2671,20 @@ public class MAVLink {
 		private int ack; // 0: ACK, 1: NACK: Wrong passkey, 2: NACK: Unsupported passkey encryption method, 3: NACK: Already under control
 	
 		public MSG_CHANGE_OPERATOR_CONTROL_ACK () {
-			super("CHANGE_OPERATOR_CONTROL_ACK", MSG_ID_CHANGE_OPERATOR_CONTROL_ACK);
+			super(MSG_ID_CHANGE_OPERATOR_CONTROL_ACK, (short)3, "CHANGE_OPERATOR_CONTROL_ACK");
 		}
 
 		public MSG_CHANGE_OPERATOR_CONTROL_ACK (byte[] bytes) {
-			super(bytes, "CHANGE_OPERATOR_CONTROL_ACK", MSG_ID_CHANGE_OPERATOR_CONTROL_ACK);
+			super(bytes, MSG_ID_CHANGE_OPERATOR_CONTROL_ACK, (short)3, "CHANGE_OPERATOR_CONTROL_ACK");
 		}
 	
-		public MSG_CHANGE_OPERATOR_CONTROL_ACK (short systemId, short componentId, int gcs_system_id  , int control_request  , int ack  ) {
-			super(systemId, componentId);
+		public MSG_CHANGE_OPERATOR_CONTROL_ACK (short sys, short comp, int gcs_system_id  , int control_request  , int ack  ) {
+			super(sys, comp, (short)3, "CHANGE_OPERATOR_CONTROL_ACK");
 			this.gcs_system_id = gcs_system_id;
 			this.control_request = control_request;
 			this.ack = ack;
 		}
 
-		@Override
-		public int getLength() {
-			return 3;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 104;
@@ -2788,6 +2716,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "CHANGE_OPERATOR_CONTROL_ACK";
 			
 			gcs_system_id = (int)buffer.get() & 0xff; // uint8_t
   			control_request = (int)buffer.get() & 0xff; // uint8_t
@@ -2795,7 +2724,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.put((byte)(gcs_system_id & 0xff)); // uint8_t
   			buffer.put((byte)(control_request & 0xff)); // uint8_t
@@ -2820,24 +2749,19 @@ public class MAVLink {
 		private int result; // See MAV_RESULT enum
 	
 		public MSG_COMMAND_ACK () {
-			super("COMMAND_ACK", MSG_ID_COMMAND_ACK);
+			super(MSG_ID_COMMAND_ACK, (short)3, "COMMAND_ACK");
 		}
 
 		public MSG_COMMAND_ACK (byte[] bytes) {
-			super(bytes, "COMMAND_ACK", MSG_ID_COMMAND_ACK);
+			super(bytes, MSG_ID_COMMAND_ACK, (short)3, "COMMAND_ACK");
 		}
 	
-		public MSG_COMMAND_ACK (short systemId, short componentId, int command  , int result  ) {
-			super(systemId, componentId);
+		public MSG_COMMAND_ACK (short sys, short comp, int command  , int result  ) {
+			super(sys, comp, (short)3, "COMMAND_ACK");
 			this.command = command;
 			this.result = result;
 		}
 
-		@Override
-		public int getLength() {
-			return 3;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 143;
@@ -2861,13 +2785,14 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "COMMAND_ACK";
 			
 			command = buffer.getShort() & 0xffff; // uint16_t
   			result = (int)buffer.get() & 0xff; // uint8_t
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(command & 0xffff)); // uint16_t
   			buffer.put((byte)(result & 0xff)); // uint8_t
@@ -2901,15 +2826,15 @@ public class MAVLink {
 		private int autocontinue; // autocontinue to next wp
 	
 		public MSG_COMMAND_INT () {
-			super("COMMAND_INT", MSG_ID_COMMAND_INT);
+			super(MSG_ID_COMMAND_INT, (short)35, "COMMAND_INT");
 		}
 
 		public MSG_COMMAND_INT (byte[] bytes) {
-			super(bytes, "COMMAND_INT", MSG_ID_COMMAND_INT);
+			super(bytes, MSG_ID_COMMAND_INT, (short)35, "COMMAND_INT");
 		}
 	
-		public MSG_COMMAND_INT (short systemId, short componentId, float param1  , float param2  , float param3  , float param4  , int x  , int y  , float z  , int command  , int target_system  , int target_component  , int frame  , int current  , int autocontinue  ) {
-			super(systemId, componentId);
+		public MSG_COMMAND_INT (short sys, short comp, float param1  , float param2  , float param3  , float param4  , int x  , int y  , float z  , int command  , int target_system  , int target_component  , int frame  , int current  , int autocontinue  ) {
+			super(sys, comp, (short)35, "COMMAND_INT");
 			this.param1 = param1;
 			this.param2 = param2;
 			this.param3 = param3;
@@ -2925,11 +2850,6 @@ public class MAVLink {
 			this.autocontinue = autocontinue;
 		}
 
-		@Override
-		public int getLength() {
-			return 35;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 158;
@@ -3041,6 +2961,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "COMMAND_INT";
 			
 			param1 = buffer.getFloat(); // float
   			param2 = buffer.getFloat(); // float
@@ -3058,7 +2979,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(param1); // float
   			buffer.putFloat(param2); // float
@@ -3112,15 +3033,15 @@ public class MAVLink {
 		private int confirmation; // 0: First transmission of this command. 1-255: Confirmation transmissions (e.g. for kill command)
 	
 		public MSG_COMMAND_LONG () {
-			super("COMMAND_LONG", MSG_ID_COMMAND_LONG);
+			super(MSG_ID_COMMAND_LONG, (short)33, "COMMAND_LONG");
 		}
 
 		public MSG_COMMAND_LONG (byte[] bytes) {
-			super(bytes, "COMMAND_LONG", MSG_ID_COMMAND_LONG);
+			super(bytes, MSG_ID_COMMAND_LONG, (short)33, "COMMAND_LONG");
 		}
 	
-		public MSG_COMMAND_LONG (short systemId, short componentId, float param1  , float param2  , float param3  , float param4  , float param5  , float param6  , float param7  , int command  , int target_system  , int target_component  , int confirmation  ) {
-			super(systemId, componentId);
+		public MSG_COMMAND_LONG (short sys, short comp, float param1  , float param2  , float param3  , float param4  , float param5  , float param6  , float param7  , int command  , int target_system  , int target_component  , int confirmation  ) {
+			super(sys, comp, (short)33, "COMMAND_LONG");
 			this.param1 = param1;
 			this.param2 = param2;
 			this.param3 = param3;
@@ -3134,11 +3055,6 @@ public class MAVLink {
 			this.confirmation = confirmation;
 		}
 
-		@Override
-		public int getLength() {
-			return 33;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 152;
@@ -3234,6 +3150,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "COMMAND_LONG";
 			
 			param1 = buffer.getFloat(); // float
   			param2 = buffer.getFloat(); // float
@@ -3249,7 +3166,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(param1); // float
   			buffer.putFloat(param2); // float
@@ -3288,25 +3205,20 @@ public class MAVLink {
 		private int on_off; // 1 stream is enabled, 0 stream is stopped.
 	
 		public MSG_DATA_STREAM () {
-			super("DATA_STREAM", MSG_ID_DATA_STREAM);
+			super(MSG_ID_DATA_STREAM, (short)4, "DATA_STREAM");
 		}
 
 		public MSG_DATA_STREAM (byte[] bytes) {
-			super(bytes, "DATA_STREAM", MSG_ID_DATA_STREAM);
+			super(bytes, MSG_ID_DATA_STREAM, (short)4, "DATA_STREAM");
 		}
 	
-		public MSG_DATA_STREAM (short systemId, short componentId, int message_rate  , int stream_id  , int on_off  ) {
-			super(systemId, componentId);
+		public MSG_DATA_STREAM (short sys, short comp, int message_rate  , int stream_id  , int on_off  ) {
+			super(sys, comp, (short)4, "DATA_STREAM");
 			this.message_rate = message_rate;
 			this.stream_id = stream_id;
 			this.on_off = on_off;
 		}
 
-		@Override
-		public int getLength() {
-			return 4;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 21;
@@ -3338,6 +3250,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "DATA_STREAM";
 			
 			message_rate = buffer.getShort() & 0xffff; // uint16_t
   			stream_id = (int)buffer.get() & 0xff; // uint8_t
@@ -3345,7 +3258,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(message_rate & 0xffff)); // uint16_t
   			buffer.put((byte)(stream_id & 0xff)); // uint8_t
@@ -3372,15 +3285,15 @@ public class MAVLink {
 		private int jpg_quality; // JPEG quality out of [1,100]
 	
 		public MSG_DATA_TRANSMISSION_HANDSHAKE () {
-			super("DATA_TRANSMISSION_HANDSHAKE", MSG_ID_DATA_TRANSMISSION_HANDSHAKE);
+			super(MSG_ID_DATA_TRANSMISSION_HANDSHAKE, (short)13, "DATA_TRANSMISSION_HANDSHAKE");
 		}
 
 		public MSG_DATA_TRANSMISSION_HANDSHAKE (byte[] bytes) {
-			super(bytes, "DATA_TRANSMISSION_HANDSHAKE", MSG_ID_DATA_TRANSMISSION_HANDSHAKE);
+			super(bytes, MSG_ID_DATA_TRANSMISSION_HANDSHAKE, (short)13, "DATA_TRANSMISSION_HANDSHAKE");
 		}
 	
-		public MSG_DATA_TRANSMISSION_HANDSHAKE (short systemId, short componentId, long size  , int width  , int height  , int packets  , int type  , int payload  , int jpg_quality  ) {
-			super(systemId, componentId);
+		public MSG_DATA_TRANSMISSION_HANDSHAKE (short sys, short comp, long size  , int width  , int height  , int packets  , int type  , int payload  , int jpg_quality  ) {
+			super(sys, comp, (short)13, "DATA_TRANSMISSION_HANDSHAKE");
 			this.size = size;
 			this.width = width;
 			this.height = height;
@@ -3390,11 +3303,6 @@ public class MAVLink {
 			this.jpg_quality = jpg_quality;
 		}
 
-		@Override
-		public int getLength() {
-			return 13;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 29;
@@ -3458,6 +3366,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "DATA_TRANSMISSION_HANDSHAKE";
 			
 			size = buffer.getInt() & 0xffffffff; // uint32_t
   			width = buffer.getShort() & 0xffff; // uint16_t
@@ -3469,7 +3378,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(size & 0xffffffff)); // uint32_t
   			buffer.putShort((short)(width & 0xffff)); // uint16_t
@@ -3503,25 +3412,20 @@ public class MAVLink {
 		private int ind; // index of debug variable
 	
 		public MSG_DEBUG () {
-			super("DEBUG", MSG_ID_DEBUG);
+			super(MSG_ID_DEBUG, (short)9, "DEBUG");
 		}
 
 		public MSG_DEBUG (byte[] bytes) {
-			super(bytes, "DEBUG", MSG_ID_DEBUG);
+			super(bytes, MSG_ID_DEBUG, (short)9, "DEBUG");
 		}
 	
-		public MSG_DEBUG (short systemId, short componentId, long time_boot_ms  , float value  , int ind  ) {
-			super(systemId, componentId);
+		public MSG_DEBUG (short sys, short comp, long time_boot_ms  , float value  , int ind  ) {
+			super(sys, comp, (short)9, "DEBUG");
 			this.time_boot_ms = time_boot_ms;
 			this.value = value;
 			this.ind = ind;
 		}
 
-		@Override
-		public int getLength() {
-			return 9;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 46;
@@ -3553,6 +3457,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "DEBUG";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			value = buffer.getFloat(); // float
@@ -3560,7 +3465,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putFloat(value); // float
@@ -3585,15 +3490,15 @@ public class MAVLink {
 		private char[] name = new char[10]; // Name
 	
 		public MSG_DEBUG_VECT () {
-			super("DEBUG_VECT", MSG_ID_DEBUG_VECT);
+			super(MSG_ID_DEBUG_VECT, (short)77, "DEBUG_VECT");
 		}
 
 		public MSG_DEBUG_VECT (byte[] bytes) {
-			super(bytes, "DEBUG_VECT", MSG_ID_DEBUG_VECT);
+			super(bytes, MSG_ID_DEBUG_VECT, (short)77, "DEBUG_VECT");
 		}
 	
-		public MSG_DEBUG_VECT (short systemId, short componentId, long time_usec  , float x  , float y  , float z  , char name [] ) {
-			super(systemId, componentId);
+		public MSG_DEBUG_VECT (short sys, short comp, long time_usec  , float x  , float y  , float z  , char name [] ) {
+			super(sys, comp, (short)77, "DEBUG_VECT");
 			this.time_usec = time_usec;
 			this.x = x;
 			this.y = y;
@@ -3601,11 +3506,6 @@ public class MAVLink {
 			this.name = name;
 		}
 
-		@Override
-		public int getLength() {
-			return 77;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 49;
@@ -3653,6 +3553,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "DEBUG_VECT";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			x = buffer.getFloat(); // float
@@ -3665,7 +3566,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			buffer.putFloat(x); // float
@@ -3704,15 +3605,15 @@ public class MAVLink {
 		private float fps; // Average images per seconds processed
 	
 		public MSG_DETECTION_STATS () {
-			super("DETECTION_STATS", MSG_ID_DETECTION_STATS);
+			super(MSG_ID_DETECTION_STATS, (short)48, "DETECTION_STATS");
 		}
 
 		public MSG_DETECTION_STATS (byte[] bytes) {
-			super(bytes, "DETECTION_STATS", MSG_ID_DETECTION_STATS);
+			super(bytes, MSG_ID_DETECTION_STATS, (short)48, "DETECTION_STATS");
 		}
 	
-		public MSG_DETECTION_STATS (short systemId, short componentId, long detections  , long cluster_iters  , float best_score  , int best_lat  , int best_lon  , int best_alt  , long best_detection_id  , long best_cluster_id  , long best_cluster_iter_id  , long images_done  , long images_todo  , float fps  ) {
-			super(systemId, componentId);
+		public MSG_DETECTION_STATS (short sys, short comp, long detections  , long cluster_iters  , float best_score  , int best_lat  , int best_lon  , int best_alt  , long best_detection_id  , long best_cluster_id  , long best_cluster_iter_id  , long images_done  , long images_todo  , float fps  ) {
+			super(sys, comp, (short)48, "DETECTION_STATS");
 			this.detections = detections;
 			this.cluster_iters = cluster_iters;
 			this.best_score = best_score;
@@ -3727,11 +3628,6 @@ public class MAVLink {
 			this.fps = fps;
 		}
 
-		@Override
-		public int getLength() {
-			return 48;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 87;
@@ -3835,6 +3731,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "DETECTION_STATS";
 			
 			detections = buffer.getInt() & 0xffffffff; // uint32_t
   			cluster_iters = buffer.getInt() & 0xffffffff; // uint32_t
@@ -3851,7 +3748,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(detections & 0xffffffff)); // uint32_t
   			buffer.putInt((int)(cluster_iters & 0xffffffff)); // uint32_t
@@ -3897,15 +3794,15 @@ public class MAVLink {
 		private int covariance; // Measurement covariance in centimeters, 0 for unknown / invalid readings
 	
 		public MSG_DISTANCE_SENSOR () {
-			super("DISTANCE_SENSOR", MSG_ID_DISTANCE_SENSOR);
+			super(MSG_ID_DISTANCE_SENSOR, (short)14, "DISTANCE_SENSOR");
 		}
 
 		public MSG_DISTANCE_SENSOR (byte[] bytes) {
-			super(bytes, "DISTANCE_SENSOR", MSG_ID_DISTANCE_SENSOR);
+			super(bytes, MSG_ID_DISTANCE_SENSOR, (short)14, "DISTANCE_SENSOR");
 		}
 	
-		public MSG_DISTANCE_SENSOR (short systemId, short componentId, long time_boot_ms  , int min_distance  , int max_distance  , int current_distance  , int type  , int id  , int orientation  , int covariance  ) {
-			super(systemId, componentId);
+		public MSG_DISTANCE_SENSOR (short sys, short comp, long time_boot_ms  , int min_distance  , int max_distance  , int current_distance  , int type  , int id  , int orientation  , int covariance  ) {
+			super(sys, comp, (short)14, "DISTANCE_SENSOR");
 			this.time_boot_ms = time_boot_ms;
 			this.min_distance = min_distance;
 			this.max_distance = max_distance;
@@ -3916,11 +3813,6 @@ public class MAVLink {
 			this.covariance = covariance;
 		}
 
-		@Override
-		public int getLength() {
-			return 14;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 85;
@@ -3992,6 +3884,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "DISTANCE_SENSOR";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			min_distance = buffer.getShort() & 0xffff; // uint16_t
@@ -4004,7 +3897,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putShort((short)(min_distance & 0xffff)); // uint16_t
@@ -4036,24 +3929,19 @@ public class MAVLink {
 		private int[] data = new int[253]; // image data bytes
 	
 		public MSG_ENCAPSULATED_DATA () {
-			super("ENCAPSULATED_DATA", MSG_ID_ENCAPSULATED_DATA);
+			super(MSG_ID_ENCAPSULATED_DATA, (short)3, "ENCAPSULATED_DATA");
 		}
 
 		public MSG_ENCAPSULATED_DATA (byte[] bytes) {
-			super(bytes, "ENCAPSULATED_DATA", MSG_ID_ENCAPSULATED_DATA);
+			super(bytes, MSG_ID_ENCAPSULATED_DATA, (short)3, "ENCAPSULATED_DATA");
 		}
 	
-		public MSG_ENCAPSULATED_DATA (short systemId, short componentId, int seqnr  , int data [] ) {
-			super(systemId, componentId);
+		public MSG_ENCAPSULATED_DATA (short sys, short comp, int seqnr  , int data [] ) {
+			super(sys, comp, (short)3, "ENCAPSULATED_DATA");
 			this.seqnr = seqnr;
 			this.data = data;
 		}
 
-		@Override
-		public int getLength() {
-			return 3;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 172;
@@ -4077,6 +3965,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "ENCAPSULATED_DATA";
 			
 			seqnr = buffer.getShort() & 0xffff; // uint16_t
   			for(int c=0; c<253; ++c) {
@@ -4086,7 +3975,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(seqnr & 0xffff)); // uint16_t
   			for(int c=0; c<253; ++c) {
@@ -4114,26 +4003,21 @@ public class MAVLink {
 		private int[] payload = new int[251]; // Variable length payload. The length is defined by the remaining message length when subtracting the header and other fields.  The entire content of this block is opaque unless you understand any the encoding message_type.  The particular encoding used can be extension specific and might not always be documented as part of the mavlink specification.
 	
 		public MSG_FILE_TRANSFER_PROTOCOL () {
-			super("FILE_TRANSFER_PROTOCOL", MSG_ID_FILE_TRANSFER_PROTOCOL);
+			super(MSG_ID_FILE_TRANSFER_PROTOCOL, (short)4, "FILE_TRANSFER_PROTOCOL");
 		}
 
 		public MSG_FILE_TRANSFER_PROTOCOL (byte[] bytes) {
-			super(bytes, "FILE_TRANSFER_PROTOCOL", MSG_ID_FILE_TRANSFER_PROTOCOL);
+			super(bytes, MSG_ID_FILE_TRANSFER_PROTOCOL, (short)4, "FILE_TRANSFER_PROTOCOL");
 		}
 	
-		public MSG_FILE_TRANSFER_PROTOCOL (short systemId, short componentId, int target_network  , int target_system  , int target_component  , int payload [] ) {
-			super(systemId, componentId);
+		public MSG_FILE_TRANSFER_PROTOCOL (short sys, short comp, int target_network  , int target_system  , int target_component  , int payload [] ) {
+			super(sys, comp, (short)4, "FILE_TRANSFER_PROTOCOL");
 			this.target_network = target_network;
 			this.target_system = target_system;
 			this.target_component = target_component;
 			this.payload = payload;
 		}
 
-		@Override
-		public int getLength() {
-			return 4;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 23;
@@ -4173,6 +4057,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "FILE_TRANSFER_PROTOCOL";
 			
 			target_network = (int)buffer.get() & 0xff; // uint8_t
   			target_system = (int)buffer.get() & 0xff; // uint8_t
@@ -4184,7 +4069,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.put((byte)(target_network & 0xff)); // uint8_t
   			buffer.put((byte)(target_system & 0xff)); // uint8_t
@@ -4222,15 +4107,15 @@ public class MAVLink {
 		private int hdg; // Compass heading in degrees * 100, 0.0..359.99 degrees. If unknown, set to: UINT16_MAX
 	
 		public MSG_GLOBAL_POSITION_INT () {
-			super("GLOBAL_POSITION_INT", MSG_ID_GLOBAL_POSITION_INT);
+			super(MSG_ID_GLOBAL_POSITION_INT, (short)28, "GLOBAL_POSITION_INT");
 		}
 
 		public MSG_GLOBAL_POSITION_INT (byte[] bytes) {
-			super(bytes, "GLOBAL_POSITION_INT", MSG_ID_GLOBAL_POSITION_INT);
+			super(bytes, MSG_ID_GLOBAL_POSITION_INT, (short)28, "GLOBAL_POSITION_INT");
 		}
 	
-		public MSG_GLOBAL_POSITION_INT (short systemId, short componentId, long time_boot_ms  , int lat  , int lon  , int alt  , int relative_alt  , int vx  , int vy  , int vz  , int hdg  ) {
-			super(systemId, componentId);
+		public MSG_GLOBAL_POSITION_INT (short sys, short comp, long time_boot_ms  , int lat  , int lon  , int alt  , int relative_alt  , int vx  , int vy  , int vz  , int hdg  ) {
+			super(sys, comp, (short)28, "GLOBAL_POSITION_INT");
 			this.time_boot_ms = time_boot_ms;
 			this.lat = lat;
 			this.lon = lon;
@@ -4242,11 +4127,6 @@ public class MAVLink {
 			this.hdg = hdg;
 		}
 
-		@Override
-		public int getLength() {
-			return 28;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 104;
@@ -4326,6 +4206,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "GLOBAL_POSITION_INT";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			lat = buffer.getInt(); // int32_t
@@ -4339,7 +4220,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putInt((int)(lat)); // int32_t
@@ -4385,15 +4266,15 @@ public class MAVLink {
 		private int estimator_type; // Class id of the estimator this estimate originated from.
 	
 		public MSG_GLOBAL_POSITION_INT_COV () {
-			super("GLOBAL_POSITION_INT_COV", MSG_ID_GLOBAL_POSITION_INT_COV);
+			super(MSG_ID_GLOBAL_POSITION_INT_COV, (short)101, "GLOBAL_POSITION_INT_COV");
 		}
 
 		public MSG_GLOBAL_POSITION_INT_COV (byte[] bytes) {
-			super(bytes, "GLOBAL_POSITION_INT_COV", MSG_ID_GLOBAL_POSITION_INT_COV);
+			super(bytes, MSG_ID_GLOBAL_POSITION_INT_COV, (short)101, "GLOBAL_POSITION_INT_COV");
 		}
 	
-		public MSG_GLOBAL_POSITION_INT_COV (short systemId, short componentId, long time_utc  , long time_boot_ms  , int lat  , int lon  , int alt  , int relative_alt  , float vx  , float vy  , float vz  , float covariance [] , int estimator_type  ) {
-			super(systemId, componentId);
+		public MSG_GLOBAL_POSITION_INT_COV (short sys, short comp, long time_utc  , long time_boot_ms  , int lat  , int lon  , int alt  , int relative_alt  , float vx  , float vy  , float vz  , float covariance [] , int estimator_type  ) {
+			super(sys, comp, (short)101, "GLOBAL_POSITION_INT_COV");
 			this.time_utc = time_utc;
 			this.time_boot_ms = time_boot_ms;
 			this.lat = lat;
@@ -4407,11 +4288,6 @@ public class MAVLink {
 			this.estimator_type = estimator_type;
 		}
 
-		@Override
-		public int getLength() {
-			return 101;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 51;
@@ -4507,6 +4383,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "GLOBAL_POSITION_INT_COV";
 			
 			time_utc = buffer.getLong(); // uint64_t
   			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
@@ -4525,7 +4402,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_utc); // uint64_t
   			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
@@ -4571,15 +4448,15 @@ public class MAVLink {
 		private float yaw; // Yaw angle in rad
 	
 		public MSG_GLOBAL_VISION_POSITION_ESTIMATE () {
-			super("GLOBAL_VISION_POSITION_ESTIMATE", MSG_ID_GLOBAL_VISION_POSITION_ESTIMATE);
+			super(MSG_ID_GLOBAL_VISION_POSITION_ESTIMATE, (short)88, "GLOBAL_VISION_POSITION_ESTIMATE");
 		}
 
 		public MSG_GLOBAL_VISION_POSITION_ESTIMATE (byte[] bytes) {
-			super(bytes, "GLOBAL_VISION_POSITION_ESTIMATE", MSG_ID_GLOBAL_VISION_POSITION_ESTIMATE);
+			super(bytes, MSG_ID_GLOBAL_VISION_POSITION_ESTIMATE, (short)88, "GLOBAL_VISION_POSITION_ESTIMATE");
 		}
 	
-		public MSG_GLOBAL_VISION_POSITION_ESTIMATE (short systemId, short componentId, long usec  , float x  , float y  , float z  , float roll  , float pitch  , float yaw  ) {
-			super(systemId, componentId);
+		public MSG_GLOBAL_VISION_POSITION_ESTIMATE (short sys, short comp, long usec  , float x  , float y  , float z  , float roll  , float pitch  , float yaw  ) {
+			super(sys, comp, (short)88, "GLOBAL_VISION_POSITION_ESTIMATE");
 			this.usec = usec;
 			this.x = x;
 			this.y = y;
@@ -4589,11 +4466,6 @@ public class MAVLink {
 			this.yaw = yaw;
 		}
 
-		@Override
-		public int getLength() {
-			return 88;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 102;
@@ -4657,6 +4529,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "GLOBAL_VISION_POSITION_ESTIMATE";
 			
 			usec = buffer.getLong(); // uint64_t
   			x = buffer.getFloat(); // float
@@ -4668,7 +4541,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(usec); // uint64_t
   			buffer.putFloat(x); // float
@@ -4711,15 +4584,15 @@ public class MAVLink {
 		private int dgps_numch; // Number of DGPS satellites
 	
 		public MSG_GPS2_RAW () {
-			super("GPS2_RAW", MSG_ID_GPS2_RAW);
+			super(MSG_ID_GPS2_RAW, (short)91, "GPS2_RAW");
 		}
 
 		public MSG_GPS2_RAW (byte[] bytes) {
-			super(bytes, "GPS2_RAW", MSG_ID_GPS2_RAW);
+			super(bytes, MSG_ID_GPS2_RAW, (short)91, "GPS2_RAW");
 		}
 	
-		public MSG_GPS2_RAW (short systemId, short componentId, long time_usec  , int lat  , int lon  , int alt  , long dgps_age  , int eph  , int epv  , int vel  , int cog  , int fix_type  , int satellites_visible  , int dgps_numch  ) {
-			super(systemId, componentId);
+		public MSG_GPS2_RAW (short sys, short comp, long time_usec  , int lat  , int lon  , int alt  , long dgps_age  , int eph  , int epv  , int vel  , int cog  , int fix_type  , int satellites_visible  , int dgps_numch  ) {
+			super(sys, comp, (short)91, "GPS2_RAW");
 			this.time_usec = time_usec;
 			this.lat = lat;
 			this.lon = lon;
@@ -4734,11 +4607,6 @@ public class MAVLink {
 			this.dgps_numch = dgps_numch;
 		}
 
-		@Override
-		public int getLength() {
-			return 91;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 87;
@@ -4842,6 +4710,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "GPS2_RAW";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			lat = buffer.getInt(); // int32_t
@@ -4858,7 +4727,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			buffer.putInt((int)(lat)); // int32_t
@@ -4912,15 +4781,15 @@ public class MAVLink {
 		private int baseline_coords_type; // Coordinate system of baseline. 0 == ECEF, 1 == NED
 	
 		public MSG_GPS2_RTK () {
-			super("GPS2_RTK", MSG_ID_GPS2_RTK);
+			super(MSG_ID_GPS2_RTK, (short)35, "GPS2_RTK");
 		}
 
 		public MSG_GPS2_RTK (byte[] bytes) {
-			super(bytes, "GPS2_RTK", MSG_ID_GPS2_RTK);
+			super(bytes, MSG_ID_GPS2_RTK, (short)35, "GPS2_RTK");
 		}
 	
-		public MSG_GPS2_RTK (short systemId, short componentId, long time_last_baseline_ms  , long tow  , int baseline_a_mm  , int baseline_b_mm  , int baseline_c_mm  , long accuracy  , int iar_num_hypotheses  , int wn  , int rtk_receiver_id  , int rtk_health  , int rtk_rate  , int nsats  , int baseline_coords_type  ) {
-			super(systemId, componentId);
+		public MSG_GPS2_RTK (short sys, short comp, long time_last_baseline_ms  , long tow  , int baseline_a_mm  , int baseline_b_mm  , int baseline_c_mm  , long accuracy  , int iar_num_hypotheses  , int wn  , int rtk_receiver_id  , int rtk_health  , int rtk_rate  , int nsats  , int baseline_coords_type  ) {
+			super(sys, comp, (short)35, "GPS2_RTK");
 			this.time_last_baseline_ms = time_last_baseline_ms;
 			this.tow = tow;
 			this.baseline_a_mm = baseline_a_mm;
@@ -4936,11 +4805,6 @@ public class MAVLink {
 			this.baseline_coords_type = baseline_coords_type;
 		}
 
-		@Override
-		public int getLength() {
-			return 35;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 226;
@@ -5052,6 +4916,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "GPS2_RTK";
 			
 			time_last_baseline_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			tow = buffer.getInt() & 0xffffffff; // uint32_t
@@ -5069,7 +4934,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_last_baseline_ms & 0xffffffff)); // uint32_t
   			buffer.putInt((int)(tow & 0xffffffff)); // uint32_t
@@ -5115,25 +4980,20 @@ public class MAVLink {
 		private int altitude; // Altitude (AMSL), in meters * 1000 (positive for up)
 	
 		public MSG_GPS_GLOBAL_ORIGIN () {
-			super("GPS_GLOBAL_ORIGIN", MSG_ID_GPS_GLOBAL_ORIGIN);
+			super(MSG_ID_GPS_GLOBAL_ORIGIN, (short)12, "GPS_GLOBAL_ORIGIN");
 		}
 
 		public MSG_GPS_GLOBAL_ORIGIN (byte[] bytes) {
-			super(bytes, "GPS_GLOBAL_ORIGIN", MSG_ID_GPS_GLOBAL_ORIGIN);
+			super(bytes, MSG_ID_GPS_GLOBAL_ORIGIN, (short)12, "GPS_GLOBAL_ORIGIN");
 		}
 	
-		public MSG_GPS_GLOBAL_ORIGIN (short systemId, short componentId, int latitude  , int longitude  , int altitude  ) {
-			super(systemId, componentId);
+		public MSG_GPS_GLOBAL_ORIGIN (short sys, short comp, int latitude  , int longitude  , int altitude  ) {
+			super(sys, comp, (short)12, "GPS_GLOBAL_ORIGIN");
 			this.latitude = latitude;
 			this.longitude = longitude;
 			this.altitude = altitude;
 		}
 
-		@Override
-		public int getLength() {
-			return 12;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 39;
@@ -5165,6 +5025,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "GPS_GLOBAL_ORIGIN";
 			
 			latitude = buffer.getInt(); // int32_t
   			longitude = buffer.getInt(); // int32_t
@@ -5172,7 +5033,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(latitude)); // int32_t
   			buffer.putInt((int)(longitude)); // int32_t
@@ -5199,26 +5060,21 @@ public class MAVLink {
 		private int[] data = new int[110]; // raw data (110 is enough for 12 satellites of RTCMv2)
 	
 		public MSG_GPS_INJECT_DATA () {
-			super("GPS_INJECT_DATA", MSG_ID_GPS_INJECT_DATA);
+			super(MSG_ID_GPS_INJECT_DATA, (short)4, "GPS_INJECT_DATA");
 		}
 
 		public MSG_GPS_INJECT_DATA (byte[] bytes) {
-			super(bytes, "GPS_INJECT_DATA", MSG_ID_GPS_INJECT_DATA);
+			super(bytes, MSG_ID_GPS_INJECT_DATA, (short)4, "GPS_INJECT_DATA");
 		}
 	
-		public MSG_GPS_INJECT_DATA (short systemId, short componentId, int target_system  , int target_component  , int len  , int data [] ) {
-			super(systemId, componentId);
+		public MSG_GPS_INJECT_DATA (short sys, short comp, int target_system  , int target_component  , int len  , int data [] ) {
+			super(sys, comp, (short)4, "GPS_INJECT_DATA");
 			this.target_system = target_system;
 			this.target_component = target_component;
 			this.len = len;
 			this.data = data;
 		}
 
-		@Override
-		public int getLength() {
-			return 4;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 250;
@@ -5258,6 +5114,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "GPS_INJECT_DATA";
 			
 			target_system = (int)buffer.get() & 0xff; // uint8_t
   			target_component = (int)buffer.get() & 0xff; // uint8_t
@@ -5269,7 +5126,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.put((byte)(target_system & 0xff)); // uint8_t
   			buffer.put((byte)(target_component & 0xff)); // uint8_t
@@ -5308,15 +5165,15 @@ public class MAVLink {
 		private int satellites_visible; // Number of satellites visible. If unknown, set to 255
 	
 		public MSG_GPS_RAW_INT () {
-			super("GPS_RAW_INT", MSG_ID_GPS_RAW_INT);
+			super(MSG_ID_GPS_RAW_INT, (short)86, "GPS_RAW_INT");
 		}
 
 		public MSG_GPS_RAW_INT (byte[] bytes) {
-			super(bytes, "GPS_RAW_INT", MSG_ID_GPS_RAW_INT);
+			super(bytes, MSG_ID_GPS_RAW_INT, (short)86, "GPS_RAW_INT");
 		}
 	
-		public MSG_GPS_RAW_INT (short systemId, short componentId, long time_usec  , int lat  , int lon  , int alt  , int eph  , int epv  , int vel  , int cog  , int fix_type  , int satellites_visible  ) {
-			super(systemId, componentId);
+		public MSG_GPS_RAW_INT (short sys, short comp, long time_usec  , int lat  , int lon  , int alt  , int eph  , int epv  , int vel  , int cog  , int fix_type  , int satellites_visible  ) {
+			super(sys, comp, (short)86, "GPS_RAW_INT");
 			this.time_usec = time_usec;
 			this.lat = lat;
 			this.lon = lon;
@@ -5329,11 +5186,6 @@ public class MAVLink {
 			this.satellites_visible = satellites_visible;
 		}
 
-		@Override
-		public int getLength() {
-			return 86;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 24;
@@ -5421,6 +5273,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "GPS_RAW_INT";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			lat = buffer.getInt(); // int32_t
@@ -5435,7 +5288,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			buffer.putInt((int)(lat)); // int32_t
@@ -5485,15 +5338,15 @@ public class MAVLink {
 		private int baseline_coords_type; // Coordinate system of baseline. 0 == ECEF, 1 == NED
 	
 		public MSG_GPS_RTK () {
-			super("GPS_RTK", MSG_ID_GPS_RTK);
+			super(MSG_ID_GPS_RTK, (short)35, "GPS_RTK");
 		}
 
 		public MSG_GPS_RTK (byte[] bytes) {
-			super(bytes, "GPS_RTK", MSG_ID_GPS_RTK);
+			super(bytes, MSG_ID_GPS_RTK, (short)35, "GPS_RTK");
 		}
 	
-		public MSG_GPS_RTK (short systemId, short componentId, long time_last_baseline_ms  , long tow  , int baseline_a_mm  , int baseline_b_mm  , int baseline_c_mm  , long accuracy  , int iar_num_hypotheses  , int wn  , int rtk_receiver_id  , int rtk_health  , int rtk_rate  , int nsats  , int baseline_coords_type  ) {
-			super(systemId, componentId);
+		public MSG_GPS_RTK (short sys, short comp, long time_last_baseline_ms  , long tow  , int baseline_a_mm  , int baseline_b_mm  , int baseline_c_mm  , long accuracy  , int iar_num_hypotheses  , int wn  , int rtk_receiver_id  , int rtk_health  , int rtk_rate  , int nsats  , int baseline_coords_type  ) {
+			super(sys, comp, (short)35, "GPS_RTK");
 			this.time_last_baseline_ms = time_last_baseline_ms;
 			this.tow = tow;
 			this.baseline_a_mm = baseline_a_mm;
@@ -5509,11 +5362,6 @@ public class MAVLink {
 			this.baseline_coords_type = baseline_coords_type;
 		}
 
-		@Override
-		public int getLength() {
-			return 35;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 25;
@@ -5625,6 +5473,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "GPS_RTK";
 			
 			time_last_baseline_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			tow = buffer.getInt() & 0xffffffff; // uint32_t
@@ -5642,7 +5491,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_last_baseline_ms & 0xffffffff)); // uint32_t
   			buffer.putInt((int)(tow & 0xffffffff)); // uint32_t
@@ -5691,15 +5540,15 @@ public class MAVLink {
 		private int[] satellite_snr = new int[20]; // Signal to noise ratio of satellite
 	
 		public MSG_GPS_STATUS () {
-			super("GPS_STATUS", MSG_ID_GPS_STATUS);
+			super(MSG_ID_GPS_STATUS, (short)6, "GPS_STATUS");
 		}
 
 		public MSG_GPS_STATUS (byte[] bytes) {
-			super(bytes, "GPS_STATUS", MSG_ID_GPS_STATUS);
+			super(bytes, MSG_ID_GPS_STATUS, (short)6, "GPS_STATUS");
 		}
 	
-		public MSG_GPS_STATUS (short systemId, short componentId, int satellites_visible  , int satellite_prn [] , int satellite_used [] , int satellite_elevation [] , int satellite_azimuth [] , int satellite_snr [] ) {
-			super(systemId, componentId);
+		public MSG_GPS_STATUS (short sys, short comp, int satellites_visible  , int satellite_prn [] , int satellite_used [] , int satellite_elevation [] , int satellite_azimuth [] , int satellite_snr [] ) {
+			super(sys, comp, (short)6, "GPS_STATUS");
 			this.satellites_visible = satellites_visible;
 			this.satellite_prn = satellite_prn;
 			this.satellite_used = satellite_used;
@@ -5708,11 +5557,6 @@ public class MAVLink {
 			this.satellite_snr = satellite_snr;
 		}
 
-		@Override
-		public int getLength() {
-			return 6;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 23;
@@ -5768,6 +5612,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "GPS_STATUS";
 			
 			satellites_visible = (int)buffer.get() & 0xff; // uint8_t
   			for(int c=0; c<20; ++c) {
@@ -5793,7 +5638,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.put((byte)(satellites_visible & 0xff)); // uint8_t
   			for(int c=0; c<20; ++c) {
@@ -5843,15 +5688,15 @@ public class MAVLink {
 		private int mavlink_version; // MAVLink version, not writable by user, gets added by protocol because of magic data type: uint8_t_mavlink_version
 	
 		public MSG_HEARTBEAT () {
-			super("HEARTBEAT", MSG_ID_HEARTBEAT);
+			super(MSG_ID_HEARTBEAT, (short)9, "HEARTBEAT");
 		}
 
 		public MSG_HEARTBEAT (byte[] bytes) {
-			super(bytes, "HEARTBEAT", MSG_ID_HEARTBEAT);
+			super(bytes, MSG_ID_HEARTBEAT, (short)9, "HEARTBEAT");
 		}
 	
-		public MSG_HEARTBEAT (short systemId, short componentId, long custom_mode  , int type  , int autopilot  , int base_mode  , int system_status  , int mavlink_version  ) {
-			super(systemId, componentId);
+		public MSG_HEARTBEAT (short sys, short comp, long custom_mode  , int type  , int autopilot  , int base_mode  , int system_status  , int mavlink_version  ) {
+			super(sys, comp, (short)9, "HEARTBEAT");
 			this.custom_mode = custom_mode;
 			this.type = type;
 			this.autopilot = autopilot;
@@ -5860,11 +5705,6 @@ public class MAVLink {
 			this.mavlink_version = mavlink_version;
 		}
 
-		@Override
-		public int getLength() {
-			return 9;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 50;
@@ -5920,6 +5760,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "HEARTBEAT";
 			
 			custom_mode = buffer.getInt() & 0xffffffff; // uint32_t
   			type = (int)buffer.get() & 0xff; // uint8_t
@@ -5930,7 +5771,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(custom_mode & 0xffffffff)); // uint32_t
   			buffer.put((byte)(type & 0xff)); // uint8_t
@@ -5974,15 +5815,15 @@ public class MAVLink {
 		private int fields_updated; // Bitmask for fields that have updated since last message, bit 0 = xacc, bit 12: temperature
 	
 		public MSG_HIGHRES_IMU () {
-			super("HIGHRES_IMU", MSG_ID_HIGHRES_IMU);
+			super(MSG_ID_HIGHRES_IMU, (short)118, "HIGHRES_IMU");
 		}
 
 		public MSG_HIGHRES_IMU (byte[] bytes) {
-			super(bytes, "HIGHRES_IMU", MSG_ID_HIGHRES_IMU);
+			super(bytes, MSG_ID_HIGHRES_IMU, (short)118, "HIGHRES_IMU");
 		}
 	
-		public MSG_HIGHRES_IMU (short systemId, short componentId, long time_usec  , float xacc  , float yacc  , float zacc  , float xgyro  , float ygyro  , float zgyro  , float xmag  , float ymag  , float zmag  , float abs_pressure  , float diff_pressure  , float pressure_alt  , float temperature  , int fields_updated  ) {
-			super(systemId, componentId);
+		public MSG_HIGHRES_IMU (short sys, short comp, long time_usec  , float xacc  , float yacc  , float zacc  , float xgyro  , float ygyro  , float zgyro  , float xmag  , float ymag  , float zmag  , float abs_pressure  , float diff_pressure  , float pressure_alt  , float temperature  , int fields_updated  ) {
+			super(sys, comp, (short)118, "HIGHRES_IMU");
 			this.time_usec = time_usec;
 			this.xacc = xacc;
 			this.yacc = yacc;
@@ -6000,11 +5841,6 @@ public class MAVLink {
 			this.fields_updated = fields_updated;
 		}
 
-		@Override
-		public int getLength() {
-			return 118;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 93;
@@ -6132,6 +5968,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "HIGHRES_IMU";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			xacc = buffer.getFloat(); // float
@@ -6151,7 +5988,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			buffer.putFloat(xacc); // float
@@ -6209,15 +6046,15 @@ public class MAVLink {
 		private int nav_mode; // Navigation mode (MAV_NAV_MODE)
 	
 		public MSG_HIL_CONTROLS () {
-			super("HIL_CONTROLS", MSG_ID_HIL_CONTROLS);
+			super(MSG_ID_HIL_CONTROLS, (short)98, "HIL_CONTROLS");
 		}
 
 		public MSG_HIL_CONTROLS (byte[] bytes) {
-			super(bytes, "HIL_CONTROLS", MSG_ID_HIL_CONTROLS);
+			super(bytes, MSG_ID_HIL_CONTROLS, (short)98, "HIL_CONTROLS");
 		}
 	
-		public MSG_HIL_CONTROLS (short systemId, short componentId, long time_usec  , float roll_ailerons  , float pitch_elevator  , float yaw_rudder  , float throttle  , float aux1  , float aux2  , float aux3  , float aux4  , int mode  , int nav_mode  ) {
-			super(systemId, componentId);
+		public MSG_HIL_CONTROLS (short sys, short comp, long time_usec  , float roll_ailerons  , float pitch_elevator  , float yaw_rudder  , float throttle  , float aux1  , float aux2  , float aux3  , float aux4  , int mode  , int nav_mode  ) {
+			super(sys, comp, (short)98, "HIL_CONTROLS");
 			this.time_usec = time_usec;
 			this.roll_ailerons = roll_ailerons;
 			this.pitch_elevator = pitch_elevator;
@@ -6231,11 +6068,6 @@ public class MAVLink {
 			this.nav_mode = nav_mode;
 		}
 
-		@Override
-		public int getLength() {
-			return 98;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 63;
@@ -6331,6 +6163,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "HIL_CONTROLS";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			roll_ailerons = buffer.getFloat(); // float
@@ -6346,7 +6179,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			buffer.putFloat(roll_ailerons); // float
@@ -6399,15 +6232,15 @@ public class MAVLink {
 		private int satellites_visible; // Number of satellites visible. If unknown, set to 255
 	
 		public MSG_HIL_GPS () {
-			super("HIL_GPS", MSG_ID_HIL_GPS);
+			super(MSG_ID_HIL_GPS, (short)92, "HIL_GPS");
 		}
 
 		public MSG_HIL_GPS (byte[] bytes) {
-			super(bytes, "HIL_GPS", MSG_ID_HIL_GPS);
+			super(bytes, MSG_ID_HIL_GPS, (short)92, "HIL_GPS");
 		}
 	
-		public MSG_HIL_GPS (short systemId, short componentId, long time_usec  , int lat  , int lon  , int alt  , int eph  , int epv  , int vel  , int vn  , int ve  , int vd  , int cog  , int fix_type  , int satellites_visible  ) {
-			super(systemId, componentId);
+		public MSG_HIL_GPS (short sys, short comp, long time_usec  , int lat  , int lon  , int alt  , int eph  , int epv  , int vel  , int vn  , int ve  , int vd  , int cog  , int fix_type  , int satellites_visible  ) {
+			super(sys, comp, (short)92, "HIL_GPS");
 			this.time_usec = time_usec;
 			this.lat = lat;
 			this.lon = lon;
@@ -6423,11 +6256,6 @@ public class MAVLink {
 			this.satellites_visible = satellites_visible;
 		}
 
-		@Override
-		public int getLength() {
-			return 92;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 124;
@@ -6539,6 +6367,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "HIL_GPS";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			lat = buffer.getInt(); // int32_t
@@ -6556,7 +6385,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			buffer.putInt((int)(lat)); // int32_t
@@ -6611,15 +6440,15 @@ public class MAVLink {
 		private int quality; // Optical flow quality / confidence. 0: no valid flow, 255: maximum quality
 	
 		public MSG_HIL_OPTICAL_FLOW () {
-			super("HIL_OPTICAL_FLOW", MSG_ID_HIL_OPTICAL_FLOW);
+			super(MSG_ID_HIL_OPTICAL_FLOW, (short)100, "HIL_OPTICAL_FLOW");
 		}
 
 		public MSG_HIL_OPTICAL_FLOW (byte[] bytes) {
-			super(bytes, "HIL_OPTICAL_FLOW", MSG_ID_HIL_OPTICAL_FLOW);
+			super(bytes, MSG_ID_HIL_OPTICAL_FLOW, (short)100, "HIL_OPTICAL_FLOW");
 		}
 	
-		public MSG_HIL_OPTICAL_FLOW (short systemId, short componentId, long time_usec  , long integration_time_us  , float integrated_x  , float integrated_y  , float integrated_xgyro  , float integrated_ygyro  , float integrated_zgyro  , long time_delta_distance_us  , float distance  , int temperature  , int sensor_id  , int quality  ) {
-			super(systemId, componentId);
+		public MSG_HIL_OPTICAL_FLOW (short sys, short comp, long time_usec  , long integration_time_us  , float integrated_x  , float integrated_y  , float integrated_xgyro  , float integrated_ygyro  , float integrated_zgyro  , long time_delta_distance_us  , float distance  , int temperature  , int sensor_id  , int quality  ) {
+			super(sys, comp, (short)100, "HIL_OPTICAL_FLOW");
 			this.time_usec = time_usec;
 			this.integration_time_us = integration_time_us;
 			this.integrated_x = integrated_x;
@@ -6634,11 +6463,6 @@ public class MAVLink {
 			this.quality = quality;
 		}
 
-		@Override
-		public int getLength() {
-			return 100;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 237;
@@ -6742,6 +6566,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "HIL_OPTICAL_FLOW";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			integration_time_us = buffer.getInt() & 0xffffffff; // uint32_t
@@ -6758,7 +6583,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			buffer.putInt((int)(integration_time_us & 0xffffffff)); // uint32_t
@@ -6813,15 +6638,15 @@ public class MAVLink {
 		private int rssi; // Receive signal strength indicator, 0: 0%, 255: 100%
 	
 		public MSG_HIL_RC_INPUTS_RAW () {
-			super("HIL_RC_INPUTS_RAW", MSG_ID_HIL_RC_INPUTS_RAW);
+			super(MSG_ID_HIL_RC_INPUTS_RAW, (short)89, "HIL_RC_INPUTS_RAW");
 		}
 
 		public MSG_HIL_RC_INPUTS_RAW (byte[] bytes) {
-			super(bytes, "HIL_RC_INPUTS_RAW", MSG_ID_HIL_RC_INPUTS_RAW);
+			super(bytes, MSG_ID_HIL_RC_INPUTS_RAW, (short)89, "HIL_RC_INPUTS_RAW");
 		}
 	
-		public MSG_HIL_RC_INPUTS_RAW (short systemId, short componentId, long time_usec  , int chan1_raw  , int chan2_raw  , int chan3_raw  , int chan4_raw  , int chan5_raw  , int chan6_raw  , int chan7_raw  , int chan8_raw  , int chan9_raw  , int chan10_raw  , int chan11_raw  , int chan12_raw  , int rssi  ) {
-			super(systemId, componentId);
+		public MSG_HIL_RC_INPUTS_RAW (short sys, short comp, long time_usec  , int chan1_raw  , int chan2_raw  , int chan3_raw  , int chan4_raw  , int chan5_raw  , int chan6_raw  , int chan7_raw  , int chan8_raw  , int chan9_raw  , int chan10_raw  , int chan11_raw  , int chan12_raw  , int rssi  ) {
+			super(sys, comp, (short)89, "HIL_RC_INPUTS_RAW");
 			this.time_usec = time_usec;
 			this.chan1_raw = chan1_raw;
 			this.chan2_raw = chan2_raw;
@@ -6838,11 +6663,6 @@ public class MAVLink {
 			this.rssi = rssi;
 		}
 
-		@Override
-		public int getLength() {
-			return 89;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 54;
@@ -6962,6 +6782,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "HIL_RC_INPUTS_RAW";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			chan1_raw = buffer.getShort() & 0xffff; // uint16_t
@@ -6980,7 +6801,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			buffer.putShort((short)(chan1_raw & 0xffff)); // uint16_t
@@ -7040,15 +6861,15 @@ public class MAVLink {
 		private long fields_updated; // Bitmask for fields that have updated since last message, bit 0 = xacc, bit 12: temperature
 	
 		public MSG_HIL_SENSOR () {
-			super("HIL_SENSOR", MSG_ID_HIL_SENSOR);
+			super(MSG_ID_HIL_SENSOR, (short)120, "HIL_SENSOR");
 		}
 
 		public MSG_HIL_SENSOR (byte[] bytes) {
-			super(bytes, "HIL_SENSOR", MSG_ID_HIL_SENSOR);
+			super(bytes, MSG_ID_HIL_SENSOR, (short)120, "HIL_SENSOR");
 		}
 	
-		public MSG_HIL_SENSOR (short systemId, short componentId, long time_usec  , float xacc  , float yacc  , float zacc  , float xgyro  , float ygyro  , float zgyro  , float xmag  , float ymag  , float zmag  , float abs_pressure  , float diff_pressure  , float pressure_alt  , float temperature  , long fields_updated  ) {
-			super(systemId, componentId);
+		public MSG_HIL_SENSOR (short sys, short comp, long time_usec  , float xacc  , float yacc  , float zacc  , float xgyro  , float ygyro  , float zgyro  , float xmag  , float ymag  , float zmag  , float abs_pressure  , float diff_pressure  , float pressure_alt  , float temperature  , long fields_updated  ) {
+			super(sys, comp, (short)120, "HIL_SENSOR");
 			this.time_usec = time_usec;
 			this.xacc = xacc;
 			this.yacc = yacc;
@@ -7066,11 +6887,6 @@ public class MAVLink {
 			this.fields_updated = fields_updated;
 		}
 
-		@Override
-		public int getLength() {
-			return 120;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 108;
@@ -7198,6 +7014,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "HIL_SENSOR";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			xacc = buffer.getFloat(); // float
@@ -7217,7 +7034,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			buffer.putFloat(xacc); // float
@@ -7280,15 +7097,15 @@ public class MAVLink {
 		private int zacc; // Z acceleration (mg)
 	
 		public MSG_HIL_STATE () {
-			super("HIL_STATE", MSG_ID_HIL_STATE);
+			super(MSG_ID_HIL_STATE, (short)112, "HIL_STATE");
 		}
 
 		public MSG_HIL_STATE (byte[] bytes) {
-			super(bytes, "HIL_STATE", MSG_ID_HIL_STATE);
+			super(bytes, MSG_ID_HIL_STATE, (short)112, "HIL_STATE");
 		}
 	
-		public MSG_HIL_STATE (short systemId, short componentId, long time_usec  , float roll  , float pitch  , float yaw  , float rollspeed  , float pitchspeed  , float yawspeed  , int lat  , int lon  , int alt  , int vx  , int vy  , int vz  , int xacc  , int yacc  , int zacc  ) {
-			super(systemId, componentId);
+		public MSG_HIL_STATE (short sys, short comp, long time_usec  , float roll  , float pitch  , float yaw  , float rollspeed  , float pitchspeed  , float yawspeed  , int lat  , int lon  , int alt  , int vx  , int vy  , int vz  , int xacc  , int yacc  , int zacc  ) {
+			super(sys, comp, (short)112, "HIL_STATE");
 			this.time_usec = time_usec;
 			this.roll = roll;
 			this.pitch = pitch;
@@ -7307,11 +7124,6 @@ public class MAVLink {
 			this.zacc = zacc;
 		}
 
-		@Override
-		public int getLength() {
-			return 112;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 183;
@@ -7447,6 +7259,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "HIL_STATE";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			roll = buffer.getFloat(); // float
@@ -7467,7 +7280,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			buffer.putFloat(roll); // float
@@ -7532,15 +7345,15 @@ public class MAVLink {
 		private int zacc; // Z acceleration (mg)
 	
 		public MSG_HIL_STATE_QUATERNION () {
-			super("HIL_STATE_QUATERNION", MSG_ID_HIL_STATE_QUATERNION);
+			super(MSG_ID_HIL_STATE_QUATERNION, (short)108, "HIL_STATE_QUATERNION");
 		}
 
 		public MSG_HIL_STATE_QUATERNION (byte[] bytes) {
-			super(bytes, "HIL_STATE_QUATERNION", MSG_ID_HIL_STATE_QUATERNION);
+			super(bytes, MSG_ID_HIL_STATE_QUATERNION, (short)108, "HIL_STATE_QUATERNION");
 		}
 	
-		public MSG_HIL_STATE_QUATERNION (short systemId, short componentId, long time_usec  , float attitude_quaternion [] , float rollspeed  , float pitchspeed  , float yawspeed  , int lat  , int lon  , int alt  , int vx  , int vy  , int vz  , int ind_airspeed  , int true_airspeed  , int xacc  , int yacc  , int zacc  ) {
-			super(systemId, componentId);
+		public MSG_HIL_STATE_QUATERNION (short sys, short comp, long time_usec  , float attitude_quaternion [] , float rollspeed  , float pitchspeed  , float yawspeed  , int lat  , int lon  , int alt  , int vx  , int vy  , int vz  , int ind_airspeed  , int true_airspeed  , int xacc  , int yacc  , int zacc  ) {
+			super(sys, comp, (short)108, "HIL_STATE_QUATERNION");
 			this.time_usec = time_usec;
 			this.attitude_quaternion = attitude_quaternion;
 			this.rollspeed = rollspeed;
@@ -7559,11 +7372,6 @@ public class MAVLink {
 			this.zacc = zacc;
 		}
 
-		@Override
-		public int getLength() {
-			return 108;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 4;
@@ -7699,6 +7507,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "HIL_STATE_QUATERNION";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			for(int c=0; c<4; ++c) {
@@ -7722,7 +7531,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			for(int c=0; c<4; ++c) {
@@ -7794,15 +7603,15 @@ public class MAVLink {
 		private int channels; // Image channels
 	
 		public MSG_IMAGE_AVAILABLE () {
-			super("IMAGE_AVAILABLE", MSG_ID_IMAGE_AVAILABLE);
+			super(MSG_ID_IMAGE_AVAILABLE, (short)260, "IMAGE_AVAILABLE");
 		}
 
 		public MSG_IMAGE_AVAILABLE (byte[] bytes) {
-			super(bytes, "IMAGE_AVAILABLE", MSG_ID_IMAGE_AVAILABLE);
+			super(bytes, MSG_ID_IMAGE_AVAILABLE, (short)260, "IMAGE_AVAILABLE");
 		}
 	
-		public MSG_IMAGE_AVAILABLE (short systemId, short componentId, long cam_id  , long timestamp  , long valid_until  , long img_seq  , long img_buf_index  , long key  , long exposure  , float gain  , float roll  , float pitch  , float yaw  , float local_z  , float lat  , float lon  , float alt  , float ground_x  , float ground_y  , float ground_z  , int width  , int height  , int depth  , int cam_no  , int channels  ) {
-			super(systemId, componentId);
+		public MSG_IMAGE_AVAILABLE (short sys, short comp, long cam_id  , long timestamp  , long valid_until  , long img_seq  , long img_buf_index  , long key  , long exposure  , float gain  , float roll  , float pitch  , float yaw  , float local_z  , float lat  , float lon  , float alt  , float ground_x  , float ground_y  , float ground_z  , int width  , int height  , int depth  , int cam_no  , int channels  ) {
+			super(sys, comp, (short)260, "IMAGE_AVAILABLE");
 			this.cam_id = cam_id;
 			this.timestamp = timestamp;
 			this.valid_until = valid_until;
@@ -7828,11 +7637,6 @@ public class MAVLink {
 			this.channels = channels;
 		}
 
-		@Override
-		public int getLength() {
-			return 260;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 224;
@@ -8024,6 +7828,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "IMAGE_AVAILABLE";
 			
 			cam_id = buffer.getLong(); // uint64_t
   			timestamp = buffer.getLong(); // uint64_t
@@ -8051,7 +7856,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(cam_id); // uint64_t
   			buffer.putLong(timestamp); // uint64_t
@@ -8123,15 +7928,15 @@ public class MAVLink {
 		private float ground_z; // Ground truth Z
 	
 		public MSG_IMAGE_TRIGGERED () {
-			super("IMAGE_TRIGGERED", MSG_ID_IMAGE_TRIGGERED);
+			super(MSG_ID_IMAGE_TRIGGERED, (short)108, "IMAGE_TRIGGERED");
 		}
 
 		public MSG_IMAGE_TRIGGERED (byte[] bytes) {
-			super(bytes, "IMAGE_TRIGGERED", MSG_ID_IMAGE_TRIGGERED);
+			super(bytes, MSG_ID_IMAGE_TRIGGERED, (short)108, "IMAGE_TRIGGERED");
 		}
 	
-		public MSG_IMAGE_TRIGGERED (short systemId, short componentId, long timestamp  , long seq  , float roll  , float pitch  , float yaw  , float local_z  , float lat  , float lon  , float alt  , float ground_x  , float ground_y  , float ground_z  ) {
-			super(systemId, componentId);
+		public MSG_IMAGE_TRIGGERED (short sys, short comp, long timestamp  , long seq  , float roll  , float pitch  , float yaw  , float local_z  , float lat  , float lon  , float alt  , float ground_x  , float ground_y  , float ground_z  ) {
+			super(sys, comp, (short)108, "IMAGE_TRIGGERED");
 			this.timestamp = timestamp;
 			this.seq = seq;
 			this.roll = roll;
@@ -8146,11 +7951,6 @@ public class MAVLink {
 			this.ground_z = ground_z;
 		}
 
-		@Override
-		public int getLength() {
-			return 108;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 86;
@@ -8254,6 +8054,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "IMAGE_TRIGGERED";
 			
 			timestamp = buffer.getLong(); // uint64_t
   			seq = buffer.getInt() & 0xffffffff; // uint32_t
@@ -8270,7 +8071,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(timestamp); // uint64_t
   			buffer.putInt((int)(seq & 0xffffffff)); // uint32_t
@@ -8309,23 +8110,18 @@ public class MAVLink {
 		private int enable; // 0 to disable, 1 to enable
 	
 		public MSG_IMAGE_TRIGGER_CONTROL () {
-			super("IMAGE_TRIGGER_CONTROL", MSG_ID_IMAGE_TRIGGER_CONTROL);
+			super(MSG_ID_IMAGE_TRIGGER_CONTROL, (short)1, "IMAGE_TRIGGER_CONTROL");
 		}
 
 		public MSG_IMAGE_TRIGGER_CONTROL (byte[] bytes) {
-			super(bytes, "IMAGE_TRIGGER_CONTROL", MSG_ID_IMAGE_TRIGGER_CONTROL);
+			super(bytes, MSG_ID_IMAGE_TRIGGER_CONTROL, (short)1, "IMAGE_TRIGGER_CONTROL");
 		}
 	
-		public MSG_IMAGE_TRIGGER_CONTROL (short systemId, short componentId, int enable  ) {
-			super(systemId, componentId);
+		public MSG_IMAGE_TRIGGER_CONTROL (short sys, short comp, int enable  ) {
+			super(sys, comp, (short)1, "IMAGE_TRIGGER_CONTROL");
 			this.enable = enable;
 		}
 
-		@Override
-		public int getLength() {
-			return 1;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 95;
@@ -8341,12 +8137,13 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "IMAGE_TRIGGER_CONTROL";
 			
 			enable = (int)buffer.get() & 0xff; // uint8_t
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.put((byte)(enable & 0xff)); // uint8_t
    			return buffer;
@@ -8372,15 +8169,15 @@ public class MAVLink {
 		private float vz; // Z Speed
 	
 		public MSG_LOCAL_POSITION_NED () {
-			super("LOCAL_POSITION_NED", MSG_ID_LOCAL_POSITION_NED);
+			super(MSG_ID_LOCAL_POSITION_NED, (short)28, "LOCAL_POSITION_NED");
 		}
 
 		public MSG_LOCAL_POSITION_NED (byte[] bytes) {
-			super(bytes, "LOCAL_POSITION_NED", MSG_ID_LOCAL_POSITION_NED);
+			super(bytes, MSG_ID_LOCAL_POSITION_NED, (short)28, "LOCAL_POSITION_NED");
 		}
 	
-		public MSG_LOCAL_POSITION_NED (short systemId, short componentId, long time_boot_ms  , float x  , float y  , float z  , float vx  , float vy  , float vz  ) {
-			super(systemId, componentId);
+		public MSG_LOCAL_POSITION_NED (short sys, short comp, long time_boot_ms  , float x  , float y  , float z  , float vx  , float vy  , float vz  ) {
+			super(sys, comp, (short)28, "LOCAL_POSITION_NED");
 			this.time_boot_ms = time_boot_ms;
 			this.x = x;
 			this.y = y;
@@ -8390,11 +8187,6 @@ public class MAVLink {
 			this.vz = vz;
 		}
 
-		@Override
-		public int getLength() {
-			return 28;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 185;
@@ -8458,6 +8250,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "LOCAL_POSITION_NED";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			x = buffer.getFloat(); // float
@@ -8469,7 +8262,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putFloat(x); // float
@@ -8513,15 +8306,15 @@ public class MAVLink {
 		private int estimator_type; // Class id of the estimator this estimate originated from.
 	
 		public MSG_LOCAL_POSITION_NED_COV () {
-			super("LOCAL_POSITION_NED_COV", MSG_ID_LOCAL_POSITION_NED_COV);
+			super(MSG_ID_LOCAL_POSITION_NED_COV, (short)109, "LOCAL_POSITION_NED_COV");
 		}
 
 		public MSG_LOCAL_POSITION_NED_COV (byte[] bytes) {
-			super(bytes, "LOCAL_POSITION_NED_COV", MSG_ID_LOCAL_POSITION_NED_COV);
+			super(bytes, MSG_ID_LOCAL_POSITION_NED_COV, (short)109, "LOCAL_POSITION_NED_COV");
 		}
 	
-		public MSG_LOCAL_POSITION_NED_COV (short systemId, short componentId, long time_utc  , long time_boot_ms  , float x  , float y  , float z  , float vx  , float vy  , float vz  , float ax  , float ay  , float az  , float covariance [] , int estimator_type  ) {
-			super(systemId, componentId);
+		public MSG_LOCAL_POSITION_NED_COV (short sys, short comp, long time_utc  , long time_boot_ms  , float x  , float y  , float z  , float vx  , float vy  , float vz  , float ax  , float ay  , float az  , float covariance [] , int estimator_type  ) {
+			super(sys, comp, (short)109, "LOCAL_POSITION_NED_COV");
 			this.time_utc = time_utc;
 			this.time_boot_ms = time_boot_ms;
 			this.x = x;
@@ -8537,11 +8330,6 @@ public class MAVLink {
 			this.estimator_type = estimator_type;
 		}
 
-		@Override
-		public int getLength() {
-			return 109;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 59;
@@ -8653,6 +8441,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "LOCAL_POSITION_NED_COV";
 			
 			time_utc = buffer.getLong(); // uint64_t
   			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
@@ -8673,7 +8462,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_utc); // uint64_t
   			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
@@ -8726,15 +8515,15 @@ public class MAVLink {
 		private float yaw; // Yaw
 	
 		public MSG_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET () {
-			super("LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET", MSG_ID_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET);
+			super(MSG_ID_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET, (short)28, "LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET");
 		}
 
 		public MSG_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET (byte[] bytes) {
-			super(bytes, "LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET", MSG_ID_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET);
+			super(bytes, MSG_ID_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET, (short)28, "LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET");
 		}
 	
-		public MSG_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET (short systemId, short componentId, long time_boot_ms  , float x  , float y  , float z  , float roll  , float pitch  , float yaw  ) {
-			super(systemId, componentId);
+		public MSG_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET (short sys, short comp, long time_boot_ms  , float x  , float y  , float z  , float roll  , float pitch  , float yaw  ) {
+			super(sys, comp, (short)28, "LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET");
 			this.time_boot_ms = time_boot_ms;
 			this.x = x;
 			this.y = y;
@@ -8744,11 +8533,6 @@ public class MAVLink {
 			this.yaw = yaw;
 		}
 
-		@Override
-		public int getLength() {
-			return 28;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 231;
@@ -8812,6 +8596,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			x = buffer.getFloat(); // float
@@ -8823,7 +8608,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putFloat(x); // float
@@ -8858,26 +8643,21 @@ public class MAVLink {
 		private int[] data = new int[90]; // log data
 	
 		public MSG_LOG_DATA () {
-			super("LOG_DATA", MSG_ID_LOG_DATA);
+			super(MSG_ID_LOG_DATA, (short)8, "LOG_DATA");
 		}
 
 		public MSG_LOG_DATA (byte[] bytes) {
-			super(bytes, "LOG_DATA", MSG_ID_LOG_DATA);
+			super(bytes, MSG_ID_LOG_DATA, (short)8, "LOG_DATA");
 		}
 	
-		public MSG_LOG_DATA (short systemId, short componentId, long ofs  , int id  , int count  , int data [] ) {
-			super(systemId, componentId);
+		public MSG_LOG_DATA (short sys, short comp, long ofs  , int id  , int count  , int data [] ) {
+			super(sys, comp, (short)8, "LOG_DATA");
 			this.ofs = ofs;
 			this.id = id;
 			this.count = count;
 			this.data = data;
 		}
 
-		@Override
-		public int getLength() {
-			return 8;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 134;
@@ -8917,6 +8697,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "LOG_DATA";
 			
 			ofs = buffer.getInt() & 0xffffffff; // uint32_t
   			id = buffer.getShort() & 0xffff; // uint16_t
@@ -8928,7 +8709,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(ofs & 0xffffffff)); // uint32_t
   			buffer.putShort((short)(id & 0xffff)); // uint16_t
@@ -8961,15 +8742,15 @@ public class MAVLink {
 		private int last_log_num; // High log number
 	
 		public MSG_LOG_ENTRY () {
-			super("LOG_ENTRY", MSG_ID_LOG_ENTRY);
+			super(MSG_ID_LOG_ENTRY, (short)14, "LOG_ENTRY");
 		}
 
 		public MSG_LOG_ENTRY (byte[] bytes) {
-			super(bytes, "LOG_ENTRY", MSG_ID_LOG_ENTRY);
+			super(bytes, MSG_ID_LOG_ENTRY, (short)14, "LOG_ENTRY");
 		}
 	
-		public MSG_LOG_ENTRY (short systemId, short componentId, long time_utc  , long size  , int id  , int num_logs  , int last_log_num  ) {
-			super(systemId, componentId);
+		public MSG_LOG_ENTRY (short sys, short comp, long time_utc  , long size  , int id  , int num_logs  , int last_log_num  ) {
+			super(sys, comp, (short)14, "LOG_ENTRY");
 			this.time_utc = time_utc;
 			this.size = size;
 			this.id = id;
@@ -8977,11 +8758,6 @@ public class MAVLink {
 			this.last_log_num = last_log_num;
 		}
 
-		@Override
-		public int getLength() {
-			return 14;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 56;
@@ -9029,6 +8805,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "LOG_ENTRY";
 			
 			time_utc = buffer.getInt() & 0xffffffff; // uint32_t
   			size = buffer.getInt() & 0xffffffff; // uint32_t
@@ -9038,7 +8815,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_utc & 0xffffffff)); // uint32_t
   			buffer.putInt((int)(size & 0xffffffff)); // uint32_t
@@ -9067,24 +8844,19 @@ public class MAVLink {
 		private int target_component; // Component ID
 	
 		public MSG_LOG_ERASE () {
-			super("LOG_ERASE", MSG_ID_LOG_ERASE);
+			super(MSG_ID_LOG_ERASE, (short)2, "LOG_ERASE");
 		}
 
 		public MSG_LOG_ERASE (byte[] bytes) {
-			super(bytes, "LOG_ERASE", MSG_ID_LOG_ERASE);
+			super(bytes, MSG_ID_LOG_ERASE, (short)2, "LOG_ERASE");
 		}
 	
-		public MSG_LOG_ERASE (short systemId, short componentId, int target_system  , int target_component  ) {
-			super(systemId, componentId);
+		public MSG_LOG_ERASE (short sys, short comp, int target_system  , int target_component  ) {
+			super(sys, comp, (short)2, "LOG_ERASE");
 			this.target_system = target_system;
 			this.target_component = target_component;
 		}
 
-		@Override
-		public int getLength() {
-			return 2;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 237;
@@ -9108,13 +8880,14 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "LOG_ERASE";
 			
 			target_system = (int)buffer.get() & 0xff; // uint8_t
   			target_component = (int)buffer.get() & 0xff; // uint8_t
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.put((byte)(target_system & 0xff)); // uint8_t
   			buffer.put((byte)(target_component & 0xff)); // uint8_t
@@ -9140,15 +8913,15 @@ public class MAVLink {
 		private int target_component; // Component ID
 	
 		public MSG_LOG_REQUEST_DATA () {
-			super("LOG_REQUEST_DATA", MSG_ID_LOG_REQUEST_DATA);
+			super(MSG_ID_LOG_REQUEST_DATA, (short)12, "LOG_REQUEST_DATA");
 		}
 
 		public MSG_LOG_REQUEST_DATA (byte[] bytes) {
-			super(bytes, "LOG_REQUEST_DATA", MSG_ID_LOG_REQUEST_DATA);
+			super(bytes, MSG_ID_LOG_REQUEST_DATA, (short)12, "LOG_REQUEST_DATA");
 		}
 	
-		public MSG_LOG_REQUEST_DATA (short systemId, short componentId, long ofs  , long count  , int id  , int target_system  , int target_component  ) {
-			super(systemId, componentId);
+		public MSG_LOG_REQUEST_DATA (short sys, short comp, long ofs  , long count  , int id  , int target_system  , int target_component  ) {
+			super(sys, comp, (short)12, "LOG_REQUEST_DATA");
 			this.ofs = ofs;
 			this.count = count;
 			this.id = id;
@@ -9156,11 +8929,6 @@ public class MAVLink {
 			this.target_component = target_component;
 		}
 
-		@Override
-		public int getLength() {
-			return 12;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 116;
@@ -9208,6 +8976,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "LOG_REQUEST_DATA";
 			
 			ofs = buffer.getInt() & 0xffffffff; // uint32_t
   			count = buffer.getInt() & 0xffffffff; // uint32_t
@@ -9217,7 +8986,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(ofs & 0xffffffff)); // uint32_t
   			buffer.putInt((int)(count & 0xffffffff)); // uint32_t
@@ -9246,24 +9015,19 @@ public class MAVLink {
 		private int target_component; // Component ID
 	
 		public MSG_LOG_REQUEST_END () {
-			super("LOG_REQUEST_END", MSG_ID_LOG_REQUEST_END);
+			super(MSG_ID_LOG_REQUEST_END, (short)2, "LOG_REQUEST_END");
 		}
 
 		public MSG_LOG_REQUEST_END (byte[] bytes) {
-			super(bytes, "LOG_REQUEST_END", MSG_ID_LOG_REQUEST_END);
+			super(bytes, MSG_ID_LOG_REQUEST_END, (short)2, "LOG_REQUEST_END");
 		}
 	
-		public MSG_LOG_REQUEST_END (short systemId, short componentId, int target_system  , int target_component  ) {
-			super(systemId, componentId);
+		public MSG_LOG_REQUEST_END (short sys, short comp, int target_system  , int target_component  ) {
+			super(sys, comp, (short)2, "LOG_REQUEST_END");
 			this.target_system = target_system;
 			this.target_component = target_component;
 		}
 
-		@Override
-		public int getLength() {
-			return 2;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 203;
@@ -9287,13 +9051,14 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "LOG_REQUEST_END";
 			
 			target_system = (int)buffer.get() & 0xff; // uint8_t
   			target_component = (int)buffer.get() & 0xff; // uint8_t
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.put((byte)(target_system & 0xff)); // uint8_t
   			buffer.put((byte)(target_component & 0xff)); // uint8_t
@@ -9318,26 +9083,21 @@ public class MAVLink {
 		private int target_component; // Component ID
 	
 		public MSG_LOG_REQUEST_LIST () {
-			super("LOG_REQUEST_LIST", MSG_ID_LOG_REQUEST_LIST);
+			super(MSG_ID_LOG_REQUEST_LIST, (short)6, "LOG_REQUEST_LIST");
 		}
 
 		public MSG_LOG_REQUEST_LIST (byte[] bytes) {
-			super(bytes, "LOG_REQUEST_LIST", MSG_ID_LOG_REQUEST_LIST);
+			super(bytes, MSG_ID_LOG_REQUEST_LIST, (short)6, "LOG_REQUEST_LIST");
 		}
 	
-		public MSG_LOG_REQUEST_LIST (short systemId, short componentId, int start  , int end  , int target_system  , int target_component  ) {
-			super(systemId, componentId);
+		public MSG_LOG_REQUEST_LIST (short sys, short comp, int start  , int end  , int target_system  , int target_component  ) {
+			super(sys, comp, (short)6, "LOG_REQUEST_LIST");
 			this.start = start;
 			this.end = end;
 			this.target_system = target_system;
 			this.target_component = target_component;
 		}
 
-		@Override
-		public int getLength() {
-			return 6;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 128;
@@ -9377,6 +9137,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "LOG_REQUEST_LIST";
 			
 			start = buffer.getShort() & 0xffff; // uint16_t
   			end = buffer.getShort() & 0xffff; // uint16_t
@@ -9385,7 +9146,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(start & 0xffff)); // uint16_t
   			buffer.putShort((short)(end & 0xffff)); // uint16_t
@@ -9416,15 +9177,15 @@ public class MAVLink {
 		private int target; // The system to be controlled.
 	
 		public MSG_MANUAL_CONTROL () {
-			super("MANUAL_CONTROL", MSG_ID_MANUAL_CONTROL);
+			super(MSG_ID_MANUAL_CONTROL, (short)11, "MANUAL_CONTROL");
 		}
 
 		public MSG_MANUAL_CONTROL (byte[] bytes) {
-			super(bytes, "MANUAL_CONTROL", MSG_ID_MANUAL_CONTROL);
+			super(bytes, MSG_ID_MANUAL_CONTROL, (short)11, "MANUAL_CONTROL");
 		}
 	
-		public MSG_MANUAL_CONTROL (short systemId, short componentId, int x  , int y  , int z  , int r  , int buttons  , int target  ) {
-			super(systemId, componentId);
+		public MSG_MANUAL_CONTROL (short sys, short comp, int x  , int y  , int z  , int r  , int buttons  , int target  ) {
+			super(sys, comp, (short)11, "MANUAL_CONTROL");
 			this.x = x;
 			this.y = y;
 			this.z = z;
@@ -9433,11 +9194,6 @@ public class MAVLink {
 			this.target = target;
 		}
 
-		@Override
-		public int getLength() {
-			return 11;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 243;
@@ -9493,6 +9249,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "MANUAL_CONTROL";
 			
 			x = buffer.getShort(); // int16_t
   			y = buffer.getShort(); // int16_t
@@ -9503,7 +9260,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(x)); // int16_t
   			buffer.putShort((short)(y)); // int16_t
@@ -9539,15 +9296,15 @@ public class MAVLink {
 		private int manual_override_switch; // Override mode switch position, 0.. 255
 	
 		public MSG_MANUAL_SETPOINT () {
-			super("MANUAL_SETPOINT", MSG_ID_MANUAL_SETPOINT);
+			super(MSG_ID_MANUAL_SETPOINT, (short)22, "MANUAL_SETPOINT");
 		}
 
 		public MSG_MANUAL_SETPOINT (byte[] bytes) {
-			super(bytes, "MANUAL_SETPOINT", MSG_ID_MANUAL_SETPOINT);
+			super(bytes, MSG_ID_MANUAL_SETPOINT, (short)22, "MANUAL_SETPOINT");
 		}
 	
-		public MSG_MANUAL_SETPOINT (short systemId, short componentId, long time_boot_ms  , float roll  , float pitch  , float yaw  , float thrust  , int mode_switch  , int manual_override_switch  ) {
-			super(systemId, componentId);
+		public MSG_MANUAL_SETPOINT (short sys, short comp, long time_boot_ms  , float roll  , float pitch  , float yaw  , float thrust  , int mode_switch  , int manual_override_switch  ) {
+			super(sys, comp, (short)22, "MANUAL_SETPOINT");
 			this.time_boot_ms = time_boot_ms;
 			this.roll = roll;
 			this.pitch = pitch;
@@ -9557,11 +9314,6 @@ public class MAVLink {
 			this.manual_override_switch = manual_override_switch;
 		}
 
-		@Override
-		public int getLength() {
-			return 22;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 106;
@@ -9625,6 +9377,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "MANUAL_SETPOINT";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			roll = buffer.getFloat(); // float
@@ -9636,7 +9389,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putFloat(roll); // float
@@ -9671,15 +9424,15 @@ public class MAVLink {
 		private int id; // ID
 	
 		public MSG_MARKER () {
-			super("MARKER", MSG_ID_MARKER);
+			super(MSG_ID_MARKER, (short)26, "MARKER");
 		}
 
 		public MSG_MARKER (byte[] bytes) {
-			super(bytes, "MARKER", MSG_ID_MARKER);
+			super(bytes, MSG_ID_MARKER, (short)26, "MARKER");
 		}
 	
-		public MSG_MARKER (short systemId, short componentId, float x  , float y  , float z  , float roll  , float pitch  , float yaw  , int id  ) {
-			super(systemId, componentId);
+		public MSG_MARKER (short sys, short comp, float x  , float y  , float z  , float roll  , float pitch  , float yaw  , int id  ) {
+			super(sys, comp, (short)26, "MARKER");
 			this.x = x;
 			this.y = y;
 			this.z = z;
@@ -9689,11 +9442,6 @@ public class MAVLink {
 			this.id = id;
 		}
 
-		@Override
-		public int getLength() {
-			return 26;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 249;
@@ -9757,6 +9505,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "MARKER";
 			
 			x = buffer.getFloat(); // float
   			y = buffer.getFloat(); // float
@@ -9768,7 +9517,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(x); // float
   			buffer.putFloat(y); // float
@@ -9803,26 +9552,21 @@ public class MAVLink {
 		private int[] value = new int[32]; // Memory contents at specified address
 	
 		public MSG_MEMORY_VECT () {
-			super("MEMORY_VECT", MSG_ID_MEMORY_VECT);
+			super(MSG_ID_MEMORY_VECT, (short)5, "MEMORY_VECT");
 		}
 
 		public MSG_MEMORY_VECT (byte[] bytes) {
-			super(bytes, "MEMORY_VECT", MSG_ID_MEMORY_VECT);
+			super(bytes, MSG_ID_MEMORY_VECT, (short)5, "MEMORY_VECT");
 		}
 	
-		public MSG_MEMORY_VECT (short systemId, short componentId, int address  , int ver  , int type  , int value [] ) {
-			super(systemId, componentId);
+		public MSG_MEMORY_VECT (short sys, short comp, int address  , int ver  , int type  , int value [] ) {
+			super(sys, comp, (short)5, "MEMORY_VECT");
 			this.address = address;
 			this.ver = ver;
 			this.type = type;
 			this.value = value;
 		}
 
-		@Override
-		public int getLength() {
-			return 5;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 204;
@@ -9862,6 +9606,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "MEMORY_VECT";
 			
 			address = buffer.getShort() & 0xffff; // uint16_t
   			ver = (int)buffer.get() & 0xff; // uint8_t
@@ -9873,7 +9618,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(address & 0xffff)); // uint16_t
   			buffer.put((byte)(ver & 0xff)); // uint8_t
@@ -9904,25 +9649,20 @@ public class MAVLink {
 		private int type; // See MAV_MISSION_RESULT enum
 	
 		public MSG_MISSION_ACK () {
-			super("MISSION_ACK", MSG_ID_MISSION_ACK);
+			super(MSG_ID_MISSION_ACK, (short)3, "MISSION_ACK");
 		}
 
 		public MSG_MISSION_ACK (byte[] bytes) {
-			super(bytes, "MISSION_ACK", MSG_ID_MISSION_ACK);
+			super(bytes, MSG_ID_MISSION_ACK, (short)3, "MISSION_ACK");
 		}
 	
-		public MSG_MISSION_ACK (short systemId, short componentId, int target_system  , int target_component  , int type  ) {
-			super(systemId, componentId);
+		public MSG_MISSION_ACK (short sys, short comp, int target_system  , int target_component  , int type  ) {
+			super(sys, comp, (short)3, "MISSION_ACK");
 			this.target_system = target_system;
 			this.target_component = target_component;
 			this.type = type;
 		}
 
-		@Override
-		public int getLength() {
-			return 3;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 153;
@@ -9954,6 +9694,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "MISSION_ACK";
 			
 			target_system = (int)buffer.get() & 0xff; // uint8_t
   			target_component = (int)buffer.get() & 0xff; // uint8_t
@@ -9961,7 +9702,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.put((byte)(target_system & 0xff)); // uint8_t
   			buffer.put((byte)(target_component & 0xff)); // uint8_t
@@ -9986,24 +9727,19 @@ public class MAVLink {
 		private int target_component; // Component ID
 	
 		public MSG_MISSION_CLEAR_ALL () {
-			super("MISSION_CLEAR_ALL", MSG_ID_MISSION_CLEAR_ALL);
+			super(MSG_ID_MISSION_CLEAR_ALL, (short)2, "MISSION_CLEAR_ALL");
 		}
 
 		public MSG_MISSION_CLEAR_ALL (byte[] bytes) {
-			super(bytes, "MISSION_CLEAR_ALL", MSG_ID_MISSION_CLEAR_ALL);
+			super(bytes, MSG_ID_MISSION_CLEAR_ALL, (short)2, "MISSION_CLEAR_ALL");
 		}
 	
-		public MSG_MISSION_CLEAR_ALL (short systemId, short componentId, int target_system  , int target_component  ) {
-			super(systemId, componentId);
+		public MSG_MISSION_CLEAR_ALL (short sys, short comp, int target_system  , int target_component  ) {
+			super(sys, comp, (short)2, "MISSION_CLEAR_ALL");
 			this.target_system = target_system;
 			this.target_component = target_component;
 		}
 
-		@Override
-		public int getLength() {
-			return 2;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 232;
@@ -10027,13 +9763,14 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "MISSION_CLEAR_ALL";
 			
 			target_system = (int)buffer.get() & 0xff; // uint8_t
   			target_component = (int)buffer.get() & 0xff; // uint8_t
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.put((byte)(target_system & 0xff)); // uint8_t
   			buffer.put((byte)(target_component & 0xff)); // uint8_t
@@ -10057,25 +9794,20 @@ public class MAVLink {
 		private int target_component; // Component ID
 	
 		public MSG_MISSION_COUNT () {
-			super("MISSION_COUNT", MSG_ID_MISSION_COUNT);
+			super(MSG_ID_MISSION_COUNT, (short)4, "MISSION_COUNT");
 		}
 
 		public MSG_MISSION_COUNT (byte[] bytes) {
-			super(bytes, "MISSION_COUNT", MSG_ID_MISSION_COUNT);
+			super(bytes, MSG_ID_MISSION_COUNT, (short)4, "MISSION_COUNT");
 		}
 	
-		public MSG_MISSION_COUNT (short systemId, short componentId, int count  , int target_system  , int target_component  ) {
-			super(systemId, componentId);
+		public MSG_MISSION_COUNT (short sys, short comp, int count  , int target_system  , int target_component  ) {
+			super(sys, comp, (short)4, "MISSION_COUNT");
 			this.count = count;
 			this.target_system = target_system;
 			this.target_component = target_component;
 		}
 
-		@Override
-		public int getLength() {
-			return 4;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 221;
@@ -10107,6 +9839,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "MISSION_COUNT";
 			
 			count = buffer.getShort() & 0xffff; // uint16_t
   			target_system = (int)buffer.get() & 0xff; // uint8_t
@@ -10114,7 +9847,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(count & 0xffff)); // uint16_t
   			buffer.put((byte)(target_system & 0xff)); // uint8_t
@@ -10138,23 +9871,18 @@ public class MAVLink {
 		private int seq; // Sequence
 	
 		public MSG_MISSION_CURRENT () {
-			super("MISSION_CURRENT", MSG_ID_MISSION_CURRENT);
+			super(MSG_ID_MISSION_CURRENT, (short)2, "MISSION_CURRENT");
 		}
 
 		public MSG_MISSION_CURRENT (byte[] bytes) {
-			super(bytes, "MISSION_CURRENT", MSG_ID_MISSION_CURRENT);
+			super(bytes, MSG_ID_MISSION_CURRENT, (short)2, "MISSION_CURRENT");
 		}
 	
-		public MSG_MISSION_CURRENT (short systemId, short componentId, int seq  ) {
-			super(systemId, componentId);
+		public MSG_MISSION_CURRENT (short sys, short comp, int seq  ) {
+			super(sys, comp, (short)2, "MISSION_CURRENT");
 			this.seq = seq;
 		}
 
-		@Override
-		public int getLength() {
-			return 2;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 28;
@@ -10170,12 +9898,13 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "MISSION_CURRENT";
 			
 			seq = buffer.getShort() & 0xffff; // uint16_t
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(seq & 0xffff)); // uint16_t
    			return buffer;
@@ -10209,15 +9938,15 @@ public class MAVLink {
 		private int autocontinue; // autocontinue to next wp
 	
 		public MSG_MISSION_ITEM () {
-			super("MISSION_ITEM", MSG_ID_MISSION_ITEM);
+			super(MSG_ID_MISSION_ITEM, (short)37, "MISSION_ITEM");
 		}
 
 		public MSG_MISSION_ITEM (byte[] bytes) {
-			super(bytes, "MISSION_ITEM", MSG_ID_MISSION_ITEM);
+			super(bytes, MSG_ID_MISSION_ITEM, (short)37, "MISSION_ITEM");
 		}
 	
-		public MSG_MISSION_ITEM (short systemId, short componentId, float param1  , float param2  , float param3  , float param4  , float x  , float y  , float z  , int seq  , int command  , int target_system  , int target_component  , int frame  , int current  , int autocontinue  ) {
-			super(systemId, componentId);
+		public MSG_MISSION_ITEM (short sys, short comp, float param1  , float param2  , float param3  , float param4  , float x  , float y  , float z  , int seq  , int command  , int target_system  , int target_component  , int frame  , int current  , int autocontinue  ) {
+			super(sys, comp, (short)37, "MISSION_ITEM");
 			this.param1 = param1;
 			this.param2 = param2;
 			this.param3 = param3;
@@ -10234,11 +9963,6 @@ public class MAVLink {
 			this.autocontinue = autocontinue;
 		}
 
-		@Override
-		public int getLength() {
-			return 37;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 254;
@@ -10358,6 +10082,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "MISSION_ITEM";
 			
 			param1 = buffer.getFloat(); // float
   			param2 = buffer.getFloat(); // float
@@ -10376,7 +10101,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(param1); // float
   			buffer.putFloat(param2); // float
@@ -10436,15 +10161,15 @@ public class MAVLink {
 		private int autocontinue; // autocontinue to next wp
 	
 		public MSG_MISSION_ITEM_INT () {
-			super("MISSION_ITEM_INT", MSG_ID_MISSION_ITEM_INT);
+			super(MSG_ID_MISSION_ITEM_INT, (short)37, "MISSION_ITEM_INT");
 		}
 
 		public MSG_MISSION_ITEM_INT (byte[] bytes) {
-			super(bytes, "MISSION_ITEM_INT", MSG_ID_MISSION_ITEM_INT);
+			super(bytes, MSG_ID_MISSION_ITEM_INT, (short)37, "MISSION_ITEM_INT");
 		}
 	
-		public MSG_MISSION_ITEM_INT (short systemId, short componentId, float param1  , float param2  , float param3  , float param4  , int x  , int y  , float z  , int seq  , int command  , int target_system  , int target_component  , int frame  , int current  , int autocontinue  ) {
-			super(systemId, componentId);
+		public MSG_MISSION_ITEM_INT (short sys, short comp, float param1  , float param2  , float param3  , float param4  , int x  , int y  , float z  , int seq  , int command  , int target_system  , int target_component  , int frame  , int current  , int autocontinue  ) {
+			super(sys, comp, (short)37, "MISSION_ITEM_INT");
 			this.param1 = param1;
 			this.param2 = param2;
 			this.param3 = param3;
@@ -10461,11 +10186,6 @@ public class MAVLink {
 			this.autocontinue = autocontinue;
 		}
 
-		@Override
-		public int getLength() {
-			return 37;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 38;
@@ -10585,6 +10305,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "MISSION_ITEM_INT";
 			
 			param1 = buffer.getFloat(); // float
   			param2 = buffer.getFloat(); // float
@@ -10603,7 +10324,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(param1); // float
   			buffer.putFloat(param2); // float
@@ -10649,23 +10370,18 @@ public class MAVLink {
 		private int seq; // Sequence
 	
 		public MSG_MISSION_ITEM_REACHED () {
-			super("MISSION_ITEM_REACHED", MSG_ID_MISSION_ITEM_REACHED);
+			super(MSG_ID_MISSION_ITEM_REACHED, (short)2, "MISSION_ITEM_REACHED");
 		}
 
 		public MSG_MISSION_ITEM_REACHED (byte[] bytes) {
-			super(bytes, "MISSION_ITEM_REACHED", MSG_ID_MISSION_ITEM_REACHED);
+			super(bytes, MSG_ID_MISSION_ITEM_REACHED, (short)2, "MISSION_ITEM_REACHED");
 		}
 	
-		public MSG_MISSION_ITEM_REACHED (short systemId, short componentId, int seq  ) {
-			super(systemId, componentId);
+		public MSG_MISSION_ITEM_REACHED (short sys, short comp, int seq  ) {
+			super(sys, comp, (short)2, "MISSION_ITEM_REACHED");
 			this.seq = seq;
 		}
 
-		@Override
-		public int getLength() {
-			return 2;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 11;
@@ -10681,12 +10397,13 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "MISSION_ITEM_REACHED";
 			
 			seq = buffer.getShort() & 0xffff; // uint16_t
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(seq & 0xffff)); // uint16_t
    			return buffer;
@@ -10708,25 +10425,20 @@ public class MAVLink {
 		private int target_component; // Component ID
 	
 		public MSG_MISSION_REQUEST () {
-			super("MISSION_REQUEST", MSG_ID_MISSION_REQUEST);
+			super(MSG_ID_MISSION_REQUEST, (short)4, "MISSION_REQUEST");
 		}
 
 		public MSG_MISSION_REQUEST (byte[] bytes) {
-			super(bytes, "MISSION_REQUEST", MSG_ID_MISSION_REQUEST);
+			super(bytes, MSG_ID_MISSION_REQUEST, (short)4, "MISSION_REQUEST");
 		}
 	
-		public MSG_MISSION_REQUEST (short systemId, short componentId, int seq  , int target_system  , int target_component  ) {
-			super(systemId, componentId);
+		public MSG_MISSION_REQUEST (short sys, short comp, int seq  , int target_system  , int target_component  ) {
+			super(sys, comp, (short)4, "MISSION_REQUEST");
 			this.seq = seq;
 			this.target_system = target_system;
 			this.target_component = target_component;
 		}
 
-		@Override
-		public int getLength() {
-			return 4;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 230;
@@ -10758,6 +10470,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "MISSION_REQUEST";
 			
 			seq = buffer.getShort() & 0xffff; // uint16_t
   			target_system = (int)buffer.get() & 0xff; // uint8_t
@@ -10765,7 +10478,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(seq & 0xffff)); // uint16_t
   			buffer.put((byte)(target_system & 0xff)); // uint8_t
@@ -10790,24 +10503,19 @@ public class MAVLink {
 		private int target_component; // Component ID
 	
 		public MSG_MISSION_REQUEST_LIST () {
-			super("MISSION_REQUEST_LIST", MSG_ID_MISSION_REQUEST_LIST);
+			super(MSG_ID_MISSION_REQUEST_LIST, (short)2, "MISSION_REQUEST_LIST");
 		}
 
 		public MSG_MISSION_REQUEST_LIST (byte[] bytes) {
-			super(bytes, "MISSION_REQUEST_LIST", MSG_ID_MISSION_REQUEST_LIST);
+			super(bytes, MSG_ID_MISSION_REQUEST_LIST, (short)2, "MISSION_REQUEST_LIST");
 		}
 	
-		public MSG_MISSION_REQUEST_LIST (short systemId, short componentId, int target_system  , int target_component  ) {
-			super(systemId, componentId);
+		public MSG_MISSION_REQUEST_LIST (short sys, short comp, int target_system  , int target_component  ) {
+			super(sys, comp, (short)2, "MISSION_REQUEST_LIST");
 			this.target_system = target_system;
 			this.target_component = target_component;
 		}
 
-		@Override
-		public int getLength() {
-			return 2;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 132;
@@ -10831,13 +10539,14 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "MISSION_REQUEST_LIST";
 			
 			target_system = (int)buffer.get() & 0xff; // uint8_t
   			target_component = (int)buffer.get() & 0xff; // uint8_t
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.put((byte)(target_system & 0xff)); // uint8_t
   			buffer.put((byte)(target_component & 0xff)); // uint8_t
@@ -10862,26 +10571,21 @@ public class MAVLink {
 		private int target_component; // Component ID
 	
 		public MSG_MISSION_REQUEST_PARTIAL_LIST () {
-			super("MISSION_REQUEST_PARTIAL_LIST", MSG_ID_MISSION_REQUEST_PARTIAL_LIST);
+			super(MSG_ID_MISSION_REQUEST_PARTIAL_LIST, (short)6, "MISSION_REQUEST_PARTIAL_LIST");
 		}
 
 		public MSG_MISSION_REQUEST_PARTIAL_LIST (byte[] bytes) {
-			super(bytes, "MISSION_REQUEST_PARTIAL_LIST", MSG_ID_MISSION_REQUEST_PARTIAL_LIST);
+			super(bytes, MSG_ID_MISSION_REQUEST_PARTIAL_LIST, (short)6, "MISSION_REQUEST_PARTIAL_LIST");
 		}
 	
-		public MSG_MISSION_REQUEST_PARTIAL_LIST (short systemId, short componentId, int start_index  , int end_index  , int target_system  , int target_component  ) {
-			super(systemId, componentId);
+		public MSG_MISSION_REQUEST_PARTIAL_LIST (short sys, short comp, int start_index  , int end_index  , int target_system  , int target_component  ) {
+			super(sys, comp, (short)6, "MISSION_REQUEST_PARTIAL_LIST");
 			this.start_index = start_index;
 			this.end_index = end_index;
 			this.target_system = target_system;
 			this.target_component = target_component;
 		}
 
-		@Override
-		public int getLength() {
-			return 6;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 212;
@@ -10921,6 +10625,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "MISSION_REQUEST_PARTIAL_LIST";
 			
 			start_index = buffer.getShort(); // int16_t
   			end_index = buffer.getShort(); // int16_t
@@ -10929,7 +10634,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(start_index)); // int16_t
   			buffer.putShort((short)(end_index)); // int16_t
@@ -10957,25 +10662,20 @@ public class MAVLink {
 		private int target_component; // Component ID
 	
 		public MSG_MISSION_SET_CURRENT () {
-			super("MISSION_SET_CURRENT", MSG_ID_MISSION_SET_CURRENT);
+			super(MSG_ID_MISSION_SET_CURRENT, (short)4, "MISSION_SET_CURRENT");
 		}
 
 		public MSG_MISSION_SET_CURRENT (byte[] bytes) {
-			super(bytes, "MISSION_SET_CURRENT", MSG_ID_MISSION_SET_CURRENT);
+			super(bytes, MSG_ID_MISSION_SET_CURRENT, (short)4, "MISSION_SET_CURRENT");
 		}
 	
-		public MSG_MISSION_SET_CURRENT (short systemId, short componentId, int seq  , int target_system  , int target_component  ) {
-			super(systemId, componentId);
+		public MSG_MISSION_SET_CURRENT (short sys, short comp, int seq  , int target_system  , int target_component  ) {
+			super(sys, comp, (short)4, "MISSION_SET_CURRENT");
 			this.seq = seq;
 			this.target_system = target_system;
 			this.target_component = target_component;
 		}
 
-		@Override
-		public int getLength() {
-			return 4;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 28;
@@ -11007,6 +10707,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "MISSION_SET_CURRENT";
 			
 			seq = buffer.getShort() & 0xffff; // uint16_t
   			target_system = (int)buffer.get() & 0xff; // uint8_t
@@ -11014,7 +10715,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(seq & 0xffff)); // uint16_t
   			buffer.put((byte)(target_system & 0xff)); // uint8_t
@@ -11041,26 +10742,21 @@ public class MAVLink {
 		private int target_component; // Component ID
 	
 		public MSG_MISSION_WRITE_PARTIAL_LIST () {
-			super("MISSION_WRITE_PARTIAL_LIST", MSG_ID_MISSION_WRITE_PARTIAL_LIST);
+			super(MSG_ID_MISSION_WRITE_PARTIAL_LIST, (short)6, "MISSION_WRITE_PARTIAL_LIST");
 		}
 
 		public MSG_MISSION_WRITE_PARTIAL_LIST (byte[] bytes) {
-			super(bytes, "MISSION_WRITE_PARTIAL_LIST", MSG_ID_MISSION_WRITE_PARTIAL_LIST);
+			super(bytes, MSG_ID_MISSION_WRITE_PARTIAL_LIST, (short)6, "MISSION_WRITE_PARTIAL_LIST");
 		}
 	
-		public MSG_MISSION_WRITE_PARTIAL_LIST (short systemId, short componentId, int start_index  , int end_index  , int target_system  , int target_component  ) {
-			super(systemId, componentId);
+		public MSG_MISSION_WRITE_PARTIAL_LIST (short sys, short comp, int start_index  , int end_index  , int target_system  , int target_component  ) {
+			super(sys, comp, (short)6, "MISSION_WRITE_PARTIAL_LIST");
 			this.start_index = start_index;
 			this.end_index = end_index;
 			this.target_system = target_system;
 			this.target_component = target_component;
 		}
 
-		@Override
-		public int getLength() {
-			return 6;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 9;
@@ -11100,6 +10796,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "MISSION_WRITE_PARTIAL_LIST";
 			
 			start_index = buffer.getShort(); // int16_t
   			end_index = buffer.getShort(); // int16_t
@@ -11108,7 +10805,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(start_index)); // int16_t
   			buffer.putShort((short)(end_index)); // int16_t
@@ -11136,25 +10833,20 @@ public class MAVLink {
 		private char[] name = new char[10]; // Name of the debug variable
 	
 		public MSG_NAMED_VALUE_FLOAT () {
-			super("NAMED_VALUE_FLOAT", MSG_ID_NAMED_VALUE_FLOAT);
+			super(MSG_ID_NAMED_VALUE_FLOAT, (short)9, "NAMED_VALUE_FLOAT");
 		}
 
 		public MSG_NAMED_VALUE_FLOAT (byte[] bytes) {
-			super(bytes, "NAMED_VALUE_FLOAT", MSG_ID_NAMED_VALUE_FLOAT);
+			super(bytes, MSG_ID_NAMED_VALUE_FLOAT, (short)9, "NAMED_VALUE_FLOAT");
 		}
 	
-		public MSG_NAMED_VALUE_FLOAT (short systemId, short componentId, long time_boot_ms  , float value  , char name [] ) {
-			super(systemId, componentId);
+		public MSG_NAMED_VALUE_FLOAT (short sys, short comp, long time_boot_ms  , float value  , char name [] ) {
+			super(sys, comp, (short)9, "NAMED_VALUE_FLOAT");
 			this.time_boot_ms = time_boot_ms;
 			this.value = value;
 			this.name = name;
 		}
 
-		@Override
-		public int getLength() {
-			return 9;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 170;
@@ -11186,6 +10878,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "NAMED_VALUE_FLOAT";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			value = buffer.getFloat(); // float
@@ -11196,7 +10889,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putFloat(value); // float
@@ -11225,25 +10918,20 @@ public class MAVLink {
 		private char[] name = new char[10]; // Name of the debug variable
 	
 		public MSG_NAMED_VALUE_INT () {
-			super("NAMED_VALUE_INT", MSG_ID_NAMED_VALUE_INT);
+			super(MSG_ID_NAMED_VALUE_INT, (short)9, "NAMED_VALUE_INT");
 		}
 
 		public MSG_NAMED_VALUE_INT (byte[] bytes) {
-			super(bytes, "NAMED_VALUE_INT", MSG_ID_NAMED_VALUE_INT);
+			super(bytes, MSG_ID_NAMED_VALUE_INT, (short)9, "NAMED_VALUE_INT");
 		}
 	
-		public MSG_NAMED_VALUE_INT (short systemId, short componentId, long time_boot_ms  , int value  , char name [] ) {
-			super(systemId, componentId);
+		public MSG_NAMED_VALUE_INT (short sys, short comp, long time_boot_ms  , int value  , char name [] ) {
+			super(sys, comp, (short)9, "NAMED_VALUE_INT");
 			this.time_boot_ms = time_boot_ms;
 			this.value = value;
 			this.name = name;
 		}
 
-		@Override
-		public int getLength() {
-			return 9;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 44;
@@ -11275,6 +10963,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "NAMED_VALUE_INT";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			value = buffer.getInt(); // int32_t
@@ -11285,7 +10974,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putInt((int)(value)); // int32_t
@@ -11319,15 +11008,15 @@ public class MAVLink {
 		private int wp_dist; // Distance to active MISSION in meters
 	
 		public MSG_NAV_CONTROLLER_OUTPUT () {
-			super("NAV_CONTROLLER_OUTPUT", MSG_ID_NAV_CONTROLLER_OUTPUT);
+			super(MSG_ID_NAV_CONTROLLER_OUTPUT, (short)26, "NAV_CONTROLLER_OUTPUT");
 		}
 
 		public MSG_NAV_CONTROLLER_OUTPUT (byte[] bytes) {
-			super(bytes, "NAV_CONTROLLER_OUTPUT", MSG_ID_NAV_CONTROLLER_OUTPUT);
+			super(bytes, MSG_ID_NAV_CONTROLLER_OUTPUT, (short)26, "NAV_CONTROLLER_OUTPUT");
 		}
 	
-		public MSG_NAV_CONTROLLER_OUTPUT (short systemId, short componentId, float nav_roll  , float nav_pitch  , float alt_error  , float aspd_error  , float xtrack_error  , int nav_bearing  , int target_bearing  , int wp_dist  ) {
-			super(systemId, componentId);
+		public MSG_NAV_CONTROLLER_OUTPUT (short sys, short comp, float nav_roll  , float nav_pitch  , float alt_error  , float aspd_error  , float xtrack_error  , int nav_bearing  , int target_bearing  , int wp_dist  ) {
+			super(sys, comp, (short)26, "NAV_CONTROLLER_OUTPUT");
 			this.nav_roll = nav_roll;
 			this.nav_pitch = nav_pitch;
 			this.alt_error = alt_error;
@@ -11338,11 +11027,6 @@ public class MAVLink {
 			this.wp_dist = wp_dist;
 		}
 
-		@Override
-		public int getLength() {
-			return 26;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 183;
@@ -11414,6 +11098,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "NAV_CONTROLLER_OUTPUT";
 			
 			nav_roll = buffer.getFloat(); // float
   			nav_pitch = buffer.getFloat(); // float
@@ -11426,7 +11111,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(nav_roll); // float
   			buffer.putFloat(nav_pitch); // float
@@ -11470,15 +11155,15 @@ public class MAVLink {
 		private int disk_usage; // Disk usage in percent
 	
 		public MSG_ONBOARD_HEALTH () {
-			super("ONBOARD_HEALTH", MSG_ID_ONBOARD_HEALTH);
+			super(MSG_ID_ONBOARD_HEALTH, (short)39, "ONBOARD_HEALTH");
 		}
 
 		public MSG_ONBOARD_HEALTH (byte[] bytes) {
-			super(bytes, "ONBOARD_HEALTH", MSG_ID_ONBOARD_HEALTH);
+			super(bytes, MSG_ID_ONBOARD_HEALTH, (short)39, "ONBOARD_HEALTH");
 		}
 	
-		public MSG_ONBOARD_HEALTH (short systemId, short componentId, long uptime  , float ram_total  , float swap_total  , float disk_total  , float temp  , float voltage  , float network_load_in  , float network_load_out  , int cpu_freq  , int cpu_load  , int ram_usage  , int swap_usage  , int disk_health  , int disk_usage  ) {
-			super(systemId, componentId);
+		public MSG_ONBOARD_HEALTH (short sys, short comp, long uptime  , float ram_total  , float swap_total  , float disk_total  , float temp  , float voltage  , float network_load_in  , float network_load_out  , int cpu_freq  , int cpu_load  , int ram_usage  , int swap_usage  , int disk_health  , int disk_usage  ) {
+			super(sys, comp, (short)39, "ONBOARD_HEALTH");
 			this.uptime = uptime;
 			this.ram_total = ram_total;
 			this.swap_total = swap_total;
@@ -11495,11 +11180,6 @@ public class MAVLink {
 			this.disk_usage = disk_usage;
 		}
 
-		@Override
-		public int getLength() {
-			return 39;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 19;
@@ -11619,6 +11299,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "ONBOARD_HEALTH";
 			
 			uptime = buffer.getInt() & 0xffffffff; // uint32_t
   			ram_total = buffer.getFloat(); // float
@@ -11637,7 +11318,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(uptime & 0xffffffff)); // uint32_t
   			buffer.putFloat(ram_total); // float
@@ -11690,15 +11371,15 @@ public class MAVLink {
 		private int quality; // Optical flow quality / confidence. 0: bad, 255: maximum quality
 	
 		public MSG_OPTICAL_FLOW () {
-			super("OPTICAL_FLOW", MSG_ID_OPTICAL_FLOW);
+			super(MSG_ID_OPTICAL_FLOW, (short)82, "OPTICAL_FLOW");
 		}
 
 		public MSG_OPTICAL_FLOW (byte[] bytes) {
-			super(bytes, "OPTICAL_FLOW", MSG_ID_OPTICAL_FLOW);
+			super(bytes, MSG_ID_OPTICAL_FLOW, (short)82, "OPTICAL_FLOW");
 		}
 	
-		public MSG_OPTICAL_FLOW (short systemId, short componentId, long time_usec  , float flow_comp_m_x  , float flow_comp_m_y  , float ground_distance  , int flow_x  , int flow_y  , int sensor_id  , int quality  ) {
-			super(systemId, componentId);
+		public MSG_OPTICAL_FLOW (short sys, short comp, long time_usec  , float flow_comp_m_x  , float flow_comp_m_y  , float ground_distance  , int flow_x  , int flow_y  , int sensor_id  , int quality  ) {
+			super(sys, comp, (short)82, "OPTICAL_FLOW");
 			this.time_usec = time_usec;
 			this.flow_comp_m_x = flow_comp_m_x;
 			this.flow_comp_m_y = flow_comp_m_y;
@@ -11709,11 +11390,6 @@ public class MAVLink {
 			this.quality = quality;
 		}
 
-		@Override
-		public int getLength() {
-			return 82;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 175;
@@ -11785,6 +11461,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "OPTICAL_FLOW";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			flow_comp_m_x = buffer.getFloat(); // float
@@ -11797,7 +11474,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			buffer.putFloat(flow_comp_m_x); // float
@@ -11842,15 +11519,15 @@ public class MAVLink {
 		private int quality; // Optical flow quality / confidence. 0: no valid flow, 255: maximum quality
 	
 		public MSG_OPTICAL_FLOW_RAD () {
-			super("OPTICAL_FLOW_RAD", MSG_ID_OPTICAL_FLOW_RAD);
+			super(MSG_ID_OPTICAL_FLOW_RAD, (short)100, "OPTICAL_FLOW_RAD");
 		}
 
 		public MSG_OPTICAL_FLOW_RAD (byte[] bytes) {
-			super(bytes, "OPTICAL_FLOW_RAD", MSG_ID_OPTICAL_FLOW_RAD);
+			super(bytes, MSG_ID_OPTICAL_FLOW_RAD, (short)100, "OPTICAL_FLOW_RAD");
 		}
 	
-		public MSG_OPTICAL_FLOW_RAD (short systemId, short componentId, long time_usec  , long integration_time_us  , float integrated_x  , float integrated_y  , float integrated_xgyro  , float integrated_ygyro  , float integrated_zgyro  , long time_delta_distance_us  , float distance  , int temperature  , int sensor_id  , int quality  ) {
-			super(systemId, componentId);
+		public MSG_OPTICAL_FLOW_RAD (short sys, short comp, long time_usec  , long integration_time_us  , float integrated_x  , float integrated_y  , float integrated_xgyro  , float integrated_ygyro  , float integrated_zgyro  , long time_delta_distance_us  , float distance  , int temperature  , int sensor_id  , int quality  ) {
+			super(sys, comp, (short)100, "OPTICAL_FLOW_RAD");
 			this.time_usec = time_usec;
 			this.integration_time_us = integration_time_us;
 			this.integrated_x = integrated_x;
@@ -11865,11 +11542,6 @@ public class MAVLink {
 			this.quality = quality;
 		}
 
-		@Override
-		public int getLength() {
-			return 100;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 138;
@@ -11973,6 +11645,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "OPTICAL_FLOW_RAD";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			integration_time_us = buffer.getInt() & 0xffffffff; // uint32_t
@@ -11989,7 +11662,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			buffer.putInt((int)(integration_time_us & 0xffffffff)); // uint32_t
@@ -12039,15 +11712,15 @@ public class MAVLink {
 		private int parameter_rc_channel_index; // Index of parameter RC channel. Not equal to the RC channel id. Typically correpsonds to a potentiometer-knob on the RC.
 	
 		public MSG_PARAM_MAP_RC () {
-			super("PARAM_MAP_RC", MSG_ID_PARAM_MAP_RC);
+			super(MSG_ID_PARAM_MAP_RC, (short)22, "PARAM_MAP_RC");
 		}
 
 		public MSG_PARAM_MAP_RC (byte[] bytes) {
-			super(bytes, "PARAM_MAP_RC", MSG_ID_PARAM_MAP_RC);
+			super(bytes, MSG_ID_PARAM_MAP_RC, (short)22, "PARAM_MAP_RC");
 		}
 	
-		public MSG_PARAM_MAP_RC (short systemId, short componentId, float param_value0  , float scale  , float param_value_min  , float param_value_max  , int param_index  , int target_system  , int target_component  , char param_id [] , int parameter_rc_channel_index  ) {
-			super(systemId, componentId);
+		public MSG_PARAM_MAP_RC (short sys, short comp, float param_value0  , float scale  , float param_value_min  , float param_value_max  , int param_index  , int target_system  , int target_component  , char param_id [] , int parameter_rc_channel_index  ) {
+			super(sys, comp, (short)22, "PARAM_MAP_RC");
 			this.param_value0 = param_value0;
 			this.scale = scale;
 			this.param_value_min = param_value_min;
@@ -12059,11 +11732,6 @@ public class MAVLink {
 			this.parameter_rc_channel_index = parameter_rc_channel_index;
 		}
 
-		@Override
-		public int getLength() {
-			return 22;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 78;
@@ -12143,6 +11811,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "PARAM_MAP_RC";
 			
 			param_value0 = buffer.getFloat(); // float
   			scale = buffer.getFloat(); // float
@@ -12159,7 +11828,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(param_value0); // float
   			buffer.putFloat(scale); // float
@@ -12199,24 +11868,19 @@ public class MAVLink {
 		private int target_component; // Component ID
 	
 		public MSG_PARAM_REQUEST_LIST () {
-			super("PARAM_REQUEST_LIST", MSG_ID_PARAM_REQUEST_LIST);
+			super(MSG_ID_PARAM_REQUEST_LIST, (short)2, "PARAM_REQUEST_LIST");
 		}
 
 		public MSG_PARAM_REQUEST_LIST (byte[] bytes) {
-			super(bytes, "PARAM_REQUEST_LIST", MSG_ID_PARAM_REQUEST_LIST);
+			super(bytes, MSG_ID_PARAM_REQUEST_LIST, (short)2, "PARAM_REQUEST_LIST");
 		}
 	
-		public MSG_PARAM_REQUEST_LIST (short systemId, short componentId, int target_system  , int target_component  ) {
-			super(systemId, componentId);
+		public MSG_PARAM_REQUEST_LIST (short sys, short comp, int target_system  , int target_component  ) {
+			super(sys, comp, (short)2, "PARAM_REQUEST_LIST");
 			this.target_system = target_system;
 			this.target_component = target_component;
 		}
 
-		@Override
-		public int getLength() {
-			return 2;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 159;
@@ -12240,13 +11904,14 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "PARAM_REQUEST_LIST";
 			
 			target_system = (int)buffer.get() & 0xff; // uint8_t
   			target_component = (int)buffer.get() & 0xff; // uint8_t
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.put((byte)(target_system & 0xff)); // uint8_t
   			buffer.put((byte)(target_component & 0xff)); // uint8_t
@@ -12271,26 +11936,21 @@ public class MAVLink {
 		private char[] param_id = new char[16]; // Onboard parameter id, terminated by NULL if the length is less than 16 human-readable chars and WITHOUT null termination (NULL) byte if the length is exactly 16 chars - applications have to provide 16+1 bytes storage if the ID is stored as string
 	
 		public MSG_PARAM_REQUEST_READ () {
-			super("PARAM_REQUEST_READ", MSG_ID_PARAM_REQUEST_READ);
+			super(MSG_ID_PARAM_REQUEST_READ, (short)5, "PARAM_REQUEST_READ");
 		}
 
 		public MSG_PARAM_REQUEST_READ (byte[] bytes) {
-			super(bytes, "PARAM_REQUEST_READ", MSG_ID_PARAM_REQUEST_READ);
+			super(bytes, MSG_ID_PARAM_REQUEST_READ, (short)5, "PARAM_REQUEST_READ");
 		}
 	
-		public MSG_PARAM_REQUEST_READ (short systemId, short componentId, int param_index  , int target_system  , int target_component  , char param_id [] ) {
-			super(systemId, componentId);
+		public MSG_PARAM_REQUEST_READ (short sys, short comp, int param_index  , int target_system  , int target_component  , char param_id [] ) {
+			super(sys, comp, (short)5, "PARAM_REQUEST_READ");
 			this.param_index = param_index;
 			this.target_system = target_system;
 			this.target_component = target_component;
 			this.param_id = param_id;
 		}
 
-		@Override
-		public int getLength() {
-			return 5;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 214;
@@ -12330,6 +11990,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "PARAM_REQUEST_READ";
 			
 			param_index = buffer.getShort(); // int16_t
   			target_system = (int)buffer.get() & 0xff; // uint8_t
@@ -12341,7 +12002,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(param_index)); // int16_t
   			buffer.put((byte)(target_system & 0xff)); // uint8_t
@@ -12374,15 +12035,15 @@ public class MAVLink {
 		private int param_type; // Onboard parameter type: see the MAV_PARAM_TYPE enum for supported data types.
 	
 		public MSG_PARAM_SET () {
-			super("PARAM_SET", MSG_ID_PARAM_SET);
+			super(MSG_ID_PARAM_SET, (short)8, "PARAM_SET");
 		}
 
 		public MSG_PARAM_SET (byte[] bytes) {
-			super(bytes, "PARAM_SET", MSG_ID_PARAM_SET);
+			super(bytes, MSG_ID_PARAM_SET, (short)8, "PARAM_SET");
 		}
 	
-		public MSG_PARAM_SET (short systemId, short componentId, float param_value  , int target_system  , int target_component  , char param_id [] , int param_type  ) {
-			super(systemId, componentId);
+		public MSG_PARAM_SET (short sys, short comp, float param_value  , int target_system  , int target_component  , char param_id [] , int param_type  ) {
+			super(sys, comp, (short)8, "PARAM_SET");
 			this.param_value = param_value;
 			this.target_system = target_system;
 			this.target_component = target_component;
@@ -12390,11 +12051,6 @@ public class MAVLink {
 			this.param_type = param_type;
 		}
 
-		@Override
-		public int getLength() {
-			return 8;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 168;
@@ -12442,6 +12098,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "PARAM_SET";
 			
 			param_value = buffer.getFloat(); // float
   			target_system = (int)buffer.get() & 0xff; // uint8_t
@@ -12454,7 +12111,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(param_value); // float
   			buffer.put((byte)(target_system & 0xff)); // uint8_t
@@ -12489,15 +12146,15 @@ public class MAVLink {
 		private int param_type; // Onboard parameter type: see the MAV_PARAM_TYPE enum for supported data types.
 	
 		public MSG_PARAM_VALUE () {
-			super("PARAM_VALUE", MSG_ID_PARAM_VALUE);
+			super(MSG_ID_PARAM_VALUE, (short)10, "PARAM_VALUE");
 		}
 
 		public MSG_PARAM_VALUE (byte[] bytes) {
-			super(bytes, "PARAM_VALUE", MSG_ID_PARAM_VALUE);
+			super(bytes, MSG_ID_PARAM_VALUE, (short)10, "PARAM_VALUE");
 		}
 	
-		public MSG_PARAM_VALUE (short systemId, short componentId, float param_value  , int param_count  , int param_index  , char param_id [] , int param_type  ) {
-			super(systemId, componentId);
+		public MSG_PARAM_VALUE (short sys, short comp, float param_value  , int param_count  , int param_index  , char param_id [] , int param_type  ) {
+			super(sys, comp, (short)10, "PARAM_VALUE");
 			this.param_value = param_value;
 			this.param_count = param_count;
 			this.param_index = param_index;
@@ -12505,11 +12162,6 @@ public class MAVLink {
 			this.param_type = param_type;
 		}
 
-		@Override
-		public int getLength() {
-			return 10;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 220;
@@ -12557,6 +12209,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "PARAM_VALUE";
 			
 			param_value = buffer.getFloat(); // float
   			param_count = buffer.getShort() & 0xffff; // uint16_t
@@ -12569,7 +12222,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(param_value); // float
   			buffer.putShort((short)(param_count & 0xffff)); // uint16_t
@@ -12600,26 +12253,21 @@ public class MAVLink {
 		private int detected; // Accepted as true detection, 0 no, 1 yes
 	
 		public MSG_PATTERN_DETECTED () {
-			super("PATTERN_DETECTED", MSG_ID_PATTERN_DETECTED);
+			super(MSG_ID_PATTERN_DETECTED, (short)7, "PATTERN_DETECTED");
 		}
 
 		public MSG_PATTERN_DETECTED (byte[] bytes) {
-			super(bytes, "PATTERN_DETECTED", MSG_ID_PATTERN_DETECTED);
+			super(bytes, MSG_ID_PATTERN_DETECTED, (short)7, "PATTERN_DETECTED");
 		}
 	
-		public MSG_PATTERN_DETECTED (short systemId, short componentId, float confidence  , int type  , char file [] , int detected  ) {
-			super(systemId, componentId);
+		public MSG_PATTERN_DETECTED (short sys, short comp, float confidence  , int type  , char file [] , int detected  ) {
+			super(sys, comp, (short)7, "PATTERN_DETECTED");
 			this.confidence = confidence;
 			this.type = type;
 			this.file = file;
 			this.detected = detected;
 		}
 
-		@Override
-		public int getLength() {
-			return 7;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 90;
@@ -12659,6 +12307,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "PATTERN_DETECTED";
 			
 			confidence = buffer.getFloat(); // float
   			type = (int)buffer.get() & 0xff; // uint8_t
@@ -12670,7 +12319,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(confidence); // float
   			buffer.put((byte)(type & 0xff)); // uint8_t
@@ -12702,26 +12351,21 @@ public class MAVLink {
 		private int target_component; // 0: request ping from all receiving components, if greater than 0: message is a ping response and number is the system id of the requesting system
 	
 		public MSG_PING () {
-			super("PING", MSG_ID_PING);
+			super(MSG_ID_PING, (short)70, "PING");
 		}
 
 		public MSG_PING (byte[] bytes) {
-			super(bytes, "PING", MSG_ID_PING);
+			super(bytes, MSG_ID_PING, (short)70, "PING");
 		}
 	
-		public MSG_PING (short systemId, short componentId, long time_usec  , long seq  , int target_system  , int target_component  ) {
-			super(systemId, componentId);
+		public MSG_PING (short sys, short comp, long time_usec  , long seq  , int target_system  , int target_component  ) {
+			super(sys, comp, (short)70, "PING");
 			this.time_usec = time_usec;
 			this.seq = seq;
 			this.target_system = target_system;
 			this.target_component = target_component;
 		}
 
-		@Override
-		public int getLength() {
-			return 70;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 237;
@@ -12761,6 +12405,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "PING";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			seq = buffer.getInt() & 0xffffffff; // uint32_t
@@ -12769,7 +12414,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			buffer.putInt((int)(seq & 0xffffffff)); // uint32_t
@@ -12805,15 +12450,15 @@ public class MAVLink {
 		private char[] name = new char[26]; // POI name
 	
 		public MSG_POINT_OF_INTEREST () {
-			super("POINT_OF_INTEREST", MSG_ID_POINT_OF_INTEREST);
+			super(MSG_ID_POINT_OF_INTEREST, (short)18, "POINT_OF_INTEREST");
 		}
 
 		public MSG_POINT_OF_INTEREST (byte[] bytes) {
-			super(bytes, "POINT_OF_INTEREST", MSG_ID_POINT_OF_INTEREST);
+			super(bytes, MSG_ID_POINT_OF_INTEREST, (short)18, "POINT_OF_INTEREST");
 		}
 	
-		public MSG_POINT_OF_INTEREST (short systemId, short componentId, float x  , float y  , float z  , int timeout  , int type  , int color  , int coordinate_system  , char name [] ) {
-			super(systemId, componentId);
+		public MSG_POINT_OF_INTEREST (short sys, short comp, float x  , float y  , float z  , int timeout  , int type  , int color  , int coordinate_system  , char name [] ) {
+			super(sys, comp, (short)18, "POINT_OF_INTEREST");
 			this.x = x;
 			this.y = y;
 			this.z = z;
@@ -12824,11 +12469,6 @@ public class MAVLink {
 			this.name = name;
 		}
 
-		@Override
-		public int getLength() {
-			return 18;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 95;
@@ -12900,6 +12540,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "POINT_OF_INTEREST";
 			
 			x = buffer.getFloat(); // float
   			y = buffer.getFloat(); // float
@@ -12915,7 +12556,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(x); // float
   			buffer.putFloat(y); // float
@@ -12965,15 +12606,15 @@ public class MAVLink {
 		private char[] name = new char[26]; // POI connection name
 	
 		public MSG_POINT_OF_INTEREST_CONNECTION () {
-			super("POINT_OF_INTEREST_CONNECTION", MSG_ID_POINT_OF_INTEREST_CONNECTION);
+			super(MSG_ID_POINT_OF_INTEREST_CONNECTION, (short)30, "POINT_OF_INTEREST_CONNECTION");
 		}
 
 		public MSG_POINT_OF_INTEREST_CONNECTION (byte[] bytes) {
-			super(bytes, "POINT_OF_INTEREST_CONNECTION", MSG_ID_POINT_OF_INTEREST_CONNECTION);
+			super(bytes, MSG_ID_POINT_OF_INTEREST_CONNECTION, (short)30, "POINT_OF_INTEREST_CONNECTION");
 		}
 	
-		public MSG_POINT_OF_INTEREST_CONNECTION (short systemId, short componentId, float xp1  , float yp1  , float zp1  , float xp2  , float yp2  , float zp2  , int timeout  , int type  , int color  , int coordinate_system  , char name [] ) {
-			super(systemId, componentId);
+		public MSG_POINT_OF_INTEREST_CONNECTION (short sys, short comp, float xp1  , float yp1  , float zp1  , float xp2  , float yp2  , float zp2  , int timeout  , int type  , int color  , int coordinate_system  , char name [] ) {
+			super(sys, comp, (short)30, "POINT_OF_INTEREST_CONNECTION");
 			this.xp1 = xp1;
 			this.yp1 = yp1;
 			this.zp1 = zp1;
@@ -12987,11 +12628,6 @@ public class MAVLink {
 			this.name = name;
 		}
 
-		@Override
-		public int getLength() {
-			return 30;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 36;
@@ -13087,6 +12723,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "POINT_OF_INTEREST_CONNECTION";
 			
 			xp1 = buffer.getFloat(); // float
   			yp1 = buffer.getFloat(); // float
@@ -13105,7 +12742,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(xp1); // float
   			buffer.putFloat(yp1); // float
@@ -13149,15 +12786,15 @@ public class MAVLink {
 		private int id; // ID of waypoint, 0 for plain position
 	
 		public MSG_POSITION_CONTROL_SETPOINT () {
-			super("POSITION_CONTROL_SETPOINT", MSG_ID_POSITION_CONTROL_SETPOINT);
+			super(MSG_ID_POSITION_CONTROL_SETPOINT, (short)18, "POSITION_CONTROL_SETPOINT");
 		}
 
 		public MSG_POSITION_CONTROL_SETPOINT (byte[] bytes) {
-			super(bytes, "POSITION_CONTROL_SETPOINT", MSG_ID_POSITION_CONTROL_SETPOINT);
+			super(bytes, MSG_ID_POSITION_CONTROL_SETPOINT, (short)18, "POSITION_CONTROL_SETPOINT");
 		}
 	
-		public MSG_POSITION_CONTROL_SETPOINT (short systemId, short componentId, float x  , float y  , float z  , float yaw  , int id  ) {
-			super(systemId, componentId);
+		public MSG_POSITION_CONTROL_SETPOINT (short sys, short comp, float x  , float y  , float z  , float yaw  , int id  ) {
+			super(sys, comp, (short)18, "POSITION_CONTROL_SETPOINT");
 			this.x = x;
 			this.y = y;
 			this.z = z;
@@ -13165,11 +12802,6 @@ public class MAVLink {
 			this.id = id;
 		}
 
-		@Override
-		public int getLength() {
-			return 18;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 28;
@@ -13217,6 +12849,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "POSITION_CONTROL_SETPOINT";
 			
 			x = buffer.getFloat(); // float
   			y = buffer.getFloat(); // float
@@ -13226,7 +12859,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(x); // float
   			buffer.putFloat(y); // float
@@ -13267,15 +12900,15 @@ public class MAVLink {
 		private int coordinate_frame; // Valid options are: MAV_FRAME_GLOBAL_INT = 5, MAV_FRAME_GLOBAL_RELATIVE_ALT_INT = 6, MAV_FRAME_GLOBAL_TERRAIN_ALT_INT = 11
 	
 		public MSG_POSITION_TARGET_GLOBAL_INT () {
-			super("POSITION_TARGET_GLOBAL_INT", MSG_ID_POSITION_TARGET_GLOBAL_INT);
+			super(MSG_ID_POSITION_TARGET_GLOBAL_INT, (short)51, "POSITION_TARGET_GLOBAL_INT");
 		}
 
 		public MSG_POSITION_TARGET_GLOBAL_INT (byte[] bytes) {
-			super(bytes, "POSITION_TARGET_GLOBAL_INT", MSG_ID_POSITION_TARGET_GLOBAL_INT);
+			super(bytes, MSG_ID_POSITION_TARGET_GLOBAL_INT, (short)51, "POSITION_TARGET_GLOBAL_INT");
 		}
 	
-		public MSG_POSITION_TARGET_GLOBAL_INT (short systemId, short componentId, long time_boot_ms  , int lat_int  , int lon_int  , float alt  , float vx  , float vy  , float vz  , float afx  , float afy  , float afz  , float yaw  , float yaw_rate  , int type_mask  , int coordinate_frame  ) {
-			super(systemId, componentId);
+		public MSG_POSITION_TARGET_GLOBAL_INT (short sys, short comp, long time_boot_ms  , int lat_int  , int lon_int  , float alt  , float vx  , float vy  , float vz  , float afx  , float afy  , float afz  , float yaw  , float yaw_rate  , int type_mask  , int coordinate_frame  ) {
+			super(sys, comp, (short)51, "POSITION_TARGET_GLOBAL_INT");
 			this.time_boot_ms = time_boot_ms;
 			this.lat_int = lat_int;
 			this.lon_int = lon_int;
@@ -13292,11 +12925,6 @@ public class MAVLink {
 			this.coordinate_frame = coordinate_frame;
 		}
 
-		@Override
-		public int getLength() {
-			return 51;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 150;
@@ -13416,6 +13044,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "POSITION_TARGET_GLOBAL_INT";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			lat_int = buffer.getInt(); // int32_t
@@ -13434,7 +13063,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putInt((int)(lat_int)); // int32_t
@@ -13493,15 +13122,15 @@ public class MAVLink {
 		private int coordinate_frame; // Valid options are: MAV_FRAME_LOCAL_NED = 1, MAV_FRAME_LOCAL_OFFSET_NED = 7, MAV_FRAME_BODY_NED = 8, MAV_FRAME_BODY_OFFSET_NED = 9
 	
 		public MSG_POSITION_TARGET_LOCAL_NED () {
-			super("POSITION_TARGET_LOCAL_NED", MSG_ID_POSITION_TARGET_LOCAL_NED);
+			super(MSG_ID_POSITION_TARGET_LOCAL_NED, (short)51, "POSITION_TARGET_LOCAL_NED");
 		}
 
 		public MSG_POSITION_TARGET_LOCAL_NED (byte[] bytes) {
-			super(bytes, "POSITION_TARGET_LOCAL_NED", MSG_ID_POSITION_TARGET_LOCAL_NED);
+			super(bytes, MSG_ID_POSITION_TARGET_LOCAL_NED, (short)51, "POSITION_TARGET_LOCAL_NED");
 		}
 	
-		public MSG_POSITION_TARGET_LOCAL_NED (short systemId, short componentId, long time_boot_ms  , float x  , float y  , float z  , float vx  , float vy  , float vz  , float afx  , float afy  , float afz  , float yaw  , float yaw_rate  , int type_mask  , int coordinate_frame  ) {
-			super(systemId, componentId);
+		public MSG_POSITION_TARGET_LOCAL_NED (short sys, short comp, long time_boot_ms  , float x  , float y  , float z  , float vx  , float vy  , float vz  , float afx  , float afy  , float afz  , float yaw  , float yaw_rate  , int type_mask  , int coordinate_frame  ) {
+			super(sys, comp, (short)51, "POSITION_TARGET_LOCAL_NED");
 			this.time_boot_ms = time_boot_ms;
 			this.x = x;
 			this.y = y;
@@ -13518,11 +13147,6 @@ public class MAVLink {
 			this.coordinate_frame = coordinate_frame;
 		}
 
-		@Override
-		public int getLength() {
-			return 51;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 140;
@@ -13642,6 +13266,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "POSITION_TARGET_LOCAL_NED";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			x = buffer.getFloat(); // float
@@ -13660,7 +13285,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putFloat(x); // float
@@ -13708,25 +13333,20 @@ public class MAVLink {
 		private int flags; // power supply status flags (see MAV_POWER_STATUS enum)
 	
 		public MSG_POWER_STATUS () {
-			super("POWER_STATUS", MSG_ID_POWER_STATUS);
+			super(MSG_ID_POWER_STATUS, (short)6, "POWER_STATUS");
 		}
 
 		public MSG_POWER_STATUS (byte[] bytes) {
-			super(bytes, "POWER_STATUS", MSG_ID_POWER_STATUS);
+			super(bytes, MSG_ID_POWER_STATUS, (short)6, "POWER_STATUS");
 		}
 	
-		public MSG_POWER_STATUS (short systemId, short componentId, int Vcc  , int Vservo  , int flags  ) {
-			super(systemId, componentId);
+		public MSG_POWER_STATUS (short sys, short comp, int Vcc  , int Vservo  , int flags  ) {
+			super(sys, comp, (short)6, "POWER_STATUS");
 			this.Vcc = Vcc;
 			this.Vservo = Vservo;
 			this.flags = flags;
 		}
 
-		@Override
-		public int getLength() {
-			return 6;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 203;
@@ -13758,6 +13378,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "POWER_STATUS";
 			
 			Vcc = buffer.getShort() & 0xffff; // uint16_t
   			Vservo = buffer.getShort() & 0xffff; // uint16_t
@@ -13765,7 +13386,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(Vcc & 0xffff)); // uint16_t
   			buffer.putShort((short)(Vservo & 0xffff)); // uint16_t
@@ -13795,15 +13416,15 @@ public class MAVLink {
 		private int remnoise; // Remote background noise level
 	
 		public MSG_RADIO_STATUS () {
-			super("RADIO_STATUS", MSG_ID_RADIO_STATUS);
+			super(MSG_ID_RADIO_STATUS, (short)9, "RADIO_STATUS");
 		}
 
 		public MSG_RADIO_STATUS (byte[] bytes) {
-			super(bytes, "RADIO_STATUS", MSG_ID_RADIO_STATUS);
+			super(bytes, MSG_ID_RADIO_STATUS, (short)9, "RADIO_STATUS");
 		}
 	
-		public MSG_RADIO_STATUS (short systemId, short componentId, int rxerrors  , int fixed  , int rssi  , int remrssi  , int txbuf  , int noise  , int remnoise  ) {
-			super(systemId, componentId);
+		public MSG_RADIO_STATUS (short sys, short comp, int rxerrors  , int fixed  , int rssi  , int remrssi  , int txbuf  , int noise  , int remnoise  ) {
+			super(sys, comp, (short)9, "RADIO_STATUS");
 			this.rxerrors = rxerrors;
 			this.fixed = fixed;
 			this.rssi = rssi;
@@ -13813,11 +13434,6 @@ public class MAVLink {
 			this.remnoise = remnoise;
 		}
 
-		@Override
-		public int getLength() {
-			return 9;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 185;
@@ -13881,6 +13497,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "RADIO_STATUS";
 			
 			rxerrors = buffer.getShort() & 0xffff; // uint16_t
   			fixed = buffer.getShort() & 0xffff; // uint16_t
@@ -13892,7 +13509,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(rxerrors & 0xffff)); // uint16_t
   			buffer.putShort((short)(fixed & 0xffff)); // uint16_t
@@ -13927,15 +13544,15 @@ public class MAVLink {
 		private int temp; // Temperature (degrees celcius)
 	
 		public MSG_RAW_AUX () {
-			super("RAW_AUX", MSG_ID_RAW_AUX);
+			super(MSG_ID_RAW_AUX, (short)16, "RAW_AUX");
 		}
 
 		public MSG_RAW_AUX (byte[] bytes) {
-			super(bytes, "RAW_AUX", MSG_ID_RAW_AUX);
+			super(bytes, MSG_ID_RAW_AUX, (short)16, "RAW_AUX");
 		}
 	
-		public MSG_RAW_AUX (short systemId, short componentId, int baro  , int adc1  , int adc2  , int adc3  , int adc4  , int vbat  , int temp  ) {
-			super(systemId, componentId);
+		public MSG_RAW_AUX (short sys, short comp, int baro  , int adc1  , int adc2  , int adc3  , int adc4  , int vbat  , int temp  ) {
+			super(sys, comp, (short)16, "RAW_AUX");
 			this.baro = baro;
 			this.adc1 = adc1;
 			this.adc2 = adc2;
@@ -13945,11 +13562,6 @@ public class MAVLink {
 			this.temp = temp;
 		}
 
-		@Override
-		public int getLength() {
-			return 16;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 182;
@@ -14013,6 +13625,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "RAW_AUX";
 			
 			baro = buffer.getInt(); // int32_t
   			adc1 = buffer.getShort() & 0xffff; // uint16_t
@@ -14024,7 +13637,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(baro)); // int32_t
   			buffer.putShort((short)(adc1 & 0xffff)); // uint16_t
@@ -14065,15 +13678,15 @@ public class MAVLink {
 		private int zmag; // Z Magnetic field (raw)
 	
 		public MSG_RAW_IMU () {
-			super("RAW_IMU", MSG_ID_RAW_IMU);
+			super(MSG_ID_RAW_IMU, (short)82, "RAW_IMU");
 		}
 
 		public MSG_RAW_IMU (byte[] bytes) {
-			super(bytes, "RAW_IMU", MSG_ID_RAW_IMU);
+			super(bytes, MSG_ID_RAW_IMU, (short)82, "RAW_IMU");
 		}
 	
-		public MSG_RAW_IMU (short systemId, short componentId, long time_usec  , int xacc  , int yacc  , int zacc  , int xgyro  , int ygyro  , int zgyro  , int xmag  , int ymag  , int zmag  ) {
-			super(systemId, componentId);
+		public MSG_RAW_IMU (short sys, short comp, long time_usec  , int xacc  , int yacc  , int zacc  , int xgyro  , int ygyro  , int zgyro  , int xmag  , int ymag  , int zmag  ) {
+			super(sys, comp, (short)82, "RAW_IMU");
 			this.time_usec = time_usec;
 			this.xacc = xacc;
 			this.yacc = yacc;
@@ -14086,11 +13699,6 @@ public class MAVLink {
 			this.zmag = zmag;
 		}
 
-		@Override
-		public int getLength() {
-			return 82;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 144;
@@ -14178,6 +13786,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "RAW_IMU";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			xacc = buffer.getShort(); // int16_t
@@ -14192,7 +13801,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			buffer.putShort((short)(xacc)); // int16_t
@@ -14234,15 +13843,15 @@ public class MAVLink {
 		private int temperature; // Raw Temperature measurement (raw)
 	
 		public MSG_RAW_PRESSURE () {
-			super("RAW_PRESSURE", MSG_ID_RAW_PRESSURE);
+			super(MSG_ID_RAW_PRESSURE, (short)72, "RAW_PRESSURE");
 		}
 
 		public MSG_RAW_PRESSURE (byte[] bytes) {
-			super(bytes, "RAW_PRESSURE", MSG_ID_RAW_PRESSURE);
+			super(bytes, MSG_ID_RAW_PRESSURE, (short)72, "RAW_PRESSURE");
 		}
 	
-		public MSG_RAW_PRESSURE (short systemId, short componentId, long time_usec  , int press_abs  , int press_diff1  , int press_diff2  , int temperature  ) {
-			super(systemId, componentId);
+		public MSG_RAW_PRESSURE (short sys, short comp, long time_usec  , int press_abs  , int press_diff1  , int press_diff2  , int temperature  ) {
+			super(sys, comp, (short)72, "RAW_PRESSURE");
 			this.time_usec = time_usec;
 			this.press_abs = press_abs;
 			this.press_diff1 = press_diff1;
@@ -14250,11 +13859,6 @@ public class MAVLink {
 			this.temperature = temperature;
 		}
 
-		@Override
-		public int getLength() {
-			return 72;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 67;
@@ -14302,6 +13906,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "RAW_PRESSURE";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			press_abs = buffer.getShort(); // int16_t
@@ -14311,7 +13916,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			buffer.putShort((short)(press_abs)); // int16_t
@@ -14359,15 +13964,15 @@ public class MAVLink {
 		private int rssi; // Receive signal strength indicator, 0: 0%, 100: 100%, 255: invalid/unknown.
 	
 		public MSG_RC_CHANNELS () {
-			super("RC_CHANNELS", MSG_ID_RC_CHANNELS);
+			super(MSG_ID_RC_CHANNELS, (short)42, "RC_CHANNELS");
 		}
 
 		public MSG_RC_CHANNELS (byte[] bytes) {
-			super(bytes, "RC_CHANNELS", MSG_ID_RC_CHANNELS);
+			super(bytes, MSG_ID_RC_CHANNELS, (short)42, "RC_CHANNELS");
 		}
 	
-		public MSG_RC_CHANNELS (short systemId, short componentId, long time_boot_ms  , int chan1_raw  , int chan2_raw  , int chan3_raw  , int chan4_raw  , int chan5_raw  , int chan6_raw  , int chan7_raw  , int chan8_raw  , int chan9_raw  , int chan10_raw  , int chan11_raw  , int chan12_raw  , int chan13_raw  , int chan14_raw  , int chan15_raw  , int chan16_raw  , int chan17_raw  , int chan18_raw  , int chancount  , int rssi  ) {
-			super(systemId, componentId);
+		public MSG_RC_CHANNELS (short sys, short comp, long time_boot_ms  , int chan1_raw  , int chan2_raw  , int chan3_raw  , int chan4_raw  , int chan5_raw  , int chan6_raw  , int chan7_raw  , int chan8_raw  , int chan9_raw  , int chan10_raw  , int chan11_raw  , int chan12_raw  , int chan13_raw  , int chan14_raw  , int chan15_raw  , int chan16_raw  , int chan17_raw  , int chan18_raw  , int chancount  , int rssi  ) {
+			super(sys, comp, (short)42, "RC_CHANNELS");
 			this.time_boot_ms = time_boot_ms;
 			this.chan1_raw = chan1_raw;
 			this.chan2_raw = chan2_raw;
@@ -14391,11 +13996,6 @@ public class MAVLink {
 			this.rssi = rssi;
 		}
 
-		@Override
-		public int getLength() {
-			return 42;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 118;
@@ -14571,6 +14171,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "RC_CHANNELS";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			chan1_raw = buffer.getShort() & 0xffff; // uint16_t
@@ -14596,7 +14197,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putShort((short)(chan1_raw & 0xffff)); // uint16_t
@@ -14665,15 +14266,15 @@ public class MAVLink {
 		private int target_component; // Component ID
 	
 		public MSG_RC_CHANNELS_OVERRIDE () {
-			super("RC_CHANNELS_OVERRIDE", MSG_ID_RC_CHANNELS_OVERRIDE);
+			super(MSG_ID_RC_CHANNELS_OVERRIDE, (short)18, "RC_CHANNELS_OVERRIDE");
 		}
 
 		public MSG_RC_CHANNELS_OVERRIDE (byte[] bytes) {
-			super(bytes, "RC_CHANNELS_OVERRIDE", MSG_ID_RC_CHANNELS_OVERRIDE);
+			super(bytes, MSG_ID_RC_CHANNELS_OVERRIDE, (short)18, "RC_CHANNELS_OVERRIDE");
 		}
 	
-		public MSG_RC_CHANNELS_OVERRIDE (short systemId, short componentId, int chan1_raw  , int chan2_raw  , int chan3_raw  , int chan4_raw  , int chan5_raw  , int chan6_raw  , int chan7_raw  , int chan8_raw  , int target_system  , int target_component  ) {
-			super(systemId, componentId);
+		public MSG_RC_CHANNELS_OVERRIDE (short sys, short comp, int chan1_raw  , int chan2_raw  , int chan3_raw  , int chan4_raw  , int chan5_raw  , int chan6_raw  , int chan7_raw  , int chan8_raw  , int target_system  , int target_component  ) {
+			super(sys, comp, (short)18, "RC_CHANNELS_OVERRIDE");
 			this.chan1_raw = chan1_raw;
 			this.chan2_raw = chan2_raw;
 			this.chan3_raw = chan3_raw;
@@ -14686,11 +14287,6 @@ public class MAVLink {
 			this.target_component = target_component;
 		}
 
-		@Override
-		public int getLength() {
-			return 18;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 124;
@@ -14778,6 +14374,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "RC_CHANNELS_OVERRIDE";
 			
 			chan1_raw = buffer.getShort() & 0xffff; // uint16_t
   			chan2_raw = buffer.getShort() & 0xffff; // uint16_t
@@ -14792,7 +14389,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(chan1_raw & 0xffff)); // uint16_t
   			buffer.putShort((short)(chan2_raw & 0xffff)); // uint16_t
@@ -14840,15 +14437,15 @@ public class MAVLink {
 		private int rssi; // Receive signal strength indicator, 0: 0%, 100: 100%, 255: invalid/unknown.
 	
 		public MSG_RC_CHANNELS_RAW () {
-			super("RC_CHANNELS_RAW", MSG_ID_RC_CHANNELS_RAW);
+			super(MSG_ID_RC_CHANNELS_RAW, (short)22, "RC_CHANNELS_RAW");
 		}
 
 		public MSG_RC_CHANNELS_RAW (byte[] bytes) {
-			super(bytes, "RC_CHANNELS_RAW", MSG_ID_RC_CHANNELS_RAW);
+			super(bytes, MSG_ID_RC_CHANNELS_RAW, (short)22, "RC_CHANNELS_RAW");
 		}
 	
-		public MSG_RC_CHANNELS_RAW (short systemId, short componentId, long time_boot_ms  , int chan1_raw  , int chan2_raw  , int chan3_raw  , int chan4_raw  , int chan5_raw  , int chan6_raw  , int chan7_raw  , int chan8_raw  , int port  , int rssi  ) {
-			super(systemId, componentId);
+		public MSG_RC_CHANNELS_RAW (short sys, short comp, long time_boot_ms  , int chan1_raw  , int chan2_raw  , int chan3_raw  , int chan4_raw  , int chan5_raw  , int chan6_raw  , int chan7_raw  , int chan8_raw  , int port  , int rssi  ) {
+			super(sys, comp, (short)22, "RC_CHANNELS_RAW");
 			this.time_boot_ms = time_boot_ms;
 			this.chan1_raw = chan1_raw;
 			this.chan2_raw = chan2_raw;
@@ -14862,11 +14459,6 @@ public class MAVLink {
 			this.rssi = rssi;
 		}
 
-		@Override
-		public int getLength() {
-			return 22;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 244;
@@ -14962,6 +14554,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "RC_CHANNELS_RAW";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			chan1_raw = buffer.getShort() & 0xffff; // uint16_t
@@ -14977,7 +14570,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putShort((short)(chan1_raw & 0xffff)); // uint16_t
@@ -15027,15 +14620,15 @@ public class MAVLink {
 		private int rssi; // Receive signal strength indicator, 0: 0%, 100: 100%, 255: invalid/unknown.
 	
 		public MSG_RC_CHANNELS_SCALED () {
-			super("RC_CHANNELS_SCALED", MSG_ID_RC_CHANNELS_SCALED);
+			super(MSG_ID_RC_CHANNELS_SCALED, (short)22, "RC_CHANNELS_SCALED");
 		}
 
 		public MSG_RC_CHANNELS_SCALED (byte[] bytes) {
-			super(bytes, "RC_CHANNELS_SCALED", MSG_ID_RC_CHANNELS_SCALED);
+			super(bytes, MSG_ID_RC_CHANNELS_SCALED, (short)22, "RC_CHANNELS_SCALED");
 		}
 	
-		public MSG_RC_CHANNELS_SCALED (short systemId, short componentId, long time_boot_ms  , int chan1_scaled  , int chan2_scaled  , int chan3_scaled  , int chan4_scaled  , int chan5_scaled  , int chan6_scaled  , int chan7_scaled  , int chan8_scaled  , int port  , int rssi  ) {
-			super(systemId, componentId);
+		public MSG_RC_CHANNELS_SCALED (short sys, short comp, long time_boot_ms  , int chan1_scaled  , int chan2_scaled  , int chan3_scaled  , int chan4_scaled  , int chan5_scaled  , int chan6_scaled  , int chan7_scaled  , int chan8_scaled  , int port  , int rssi  ) {
+			super(sys, comp, (short)22, "RC_CHANNELS_SCALED");
 			this.time_boot_ms = time_boot_ms;
 			this.chan1_scaled = chan1_scaled;
 			this.chan2_scaled = chan2_scaled;
@@ -15049,11 +14642,6 @@ public class MAVLink {
 			this.rssi = rssi;
 		}
 
-		@Override
-		public int getLength() {
-			return 22;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 237;
@@ -15149,6 +14737,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "RC_CHANNELS_SCALED";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			chan1_scaled = buffer.getShort(); // int16_t
@@ -15164,7 +14753,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putShort((short)(chan1_scaled)); // int16_t
@@ -15205,15 +14794,15 @@ public class MAVLink {
 		private int start_stop; // 1 to start sending, 0 to stop sending.
 	
 		public MSG_REQUEST_DATA_STREAM () {
-			super("REQUEST_DATA_STREAM", MSG_ID_REQUEST_DATA_STREAM);
+			super(MSG_ID_REQUEST_DATA_STREAM, (short)6, "REQUEST_DATA_STREAM");
 		}
 
 		public MSG_REQUEST_DATA_STREAM (byte[] bytes) {
-			super(bytes, "REQUEST_DATA_STREAM", MSG_ID_REQUEST_DATA_STREAM);
+			super(bytes, MSG_ID_REQUEST_DATA_STREAM, (short)6, "REQUEST_DATA_STREAM");
 		}
 	
-		public MSG_REQUEST_DATA_STREAM (short systemId, short componentId, int req_message_rate  , int target_system  , int target_component  , int req_stream_id  , int start_stop  ) {
-			super(systemId, componentId);
+		public MSG_REQUEST_DATA_STREAM (short sys, short comp, int req_message_rate  , int target_system  , int target_component  , int req_stream_id  , int start_stop  ) {
+			super(sys, comp, (short)6, "REQUEST_DATA_STREAM");
 			this.req_message_rate = req_message_rate;
 			this.target_system = target_system;
 			this.target_component = target_component;
@@ -15221,11 +14810,6 @@ public class MAVLink {
 			this.start_stop = start_stop;
 		}
 
-		@Override
-		public int getLength() {
-			return 6;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 148;
@@ -15273,6 +14857,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "REQUEST_DATA_STREAM";
 			
 			req_message_rate = buffer.getShort() & 0xffff; // uint16_t
   			target_system = (int)buffer.get() & 0xff; // uint8_t
@@ -15282,7 +14867,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(req_message_rate & 0xffff)); // uint16_t
   			buffer.put((byte)(target_system & 0xff)); // uint8_t
@@ -15316,15 +14901,15 @@ public class MAVLink {
 		private int frame; // Coordinate frame, as defined by MAV_FRAME enum in mavlink_types.h. Can be either global, GPS, right-handed with Z axis up or local, right handed, Z axis down.
 	
 		public MSG_SAFETY_ALLOWED_AREA () {
-			super("SAFETY_ALLOWED_AREA", MSG_ID_SAFETY_ALLOWED_AREA);
+			super(MSG_ID_SAFETY_ALLOWED_AREA, (short)25, "SAFETY_ALLOWED_AREA");
 		}
 
 		public MSG_SAFETY_ALLOWED_AREA (byte[] bytes) {
-			super(bytes, "SAFETY_ALLOWED_AREA", MSG_ID_SAFETY_ALLOWED_AREA);
+			super(bytes, MSG_ID_SAFETY_ALLOWED_AREA, (short)25, "SAFETY_ALLOWED_AREA");
 		}
 	
-		public MSG_SAFETY_ALLOWED_AREA (short systemId, short componentId, float p1x  , float p1y  , float p1z  , float p2x  , float p2y  , float p2z  , int frame  ) {
-			super(systemId, componentId);
+		public MSG_SAFETY_ALLOWED_AREA (short sys, short comp, float p1x  , float p1y  , float p1z  , float p2x  , float p2y  , float p2z  , int frame  ) {
+			super(sys, comp, (short)25, "SAFETY_ALLOWED_AREA");
 			this.p1x = p1x;
 			this.p1y = p1y;
 			this.p1z = p1z;
@@ -15334,11 +14919,6 @@ public class MAVLink {
 			this.frame = frame;
 		}
 
-		@Override
-		public int getLength() {
-			return 25;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 3;
@@ -15402,6 +14982,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SAFETY_ALLOWED_AREA";
 			
 			p1x = buffer.getFloat(); // float
   			p1y = buffer.getFloat(); // float
@@ -15413,7 +14994,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(p1x); // float
   			buffer.putFloat(p1y); // float
@@ -15453,15 +15034,15 @@ public class MAVLink {
 		private int frame; // Coordinate frame, as defined by MAV_FRAME enum in mavlink_types.h. Can be either global, GPS, right-handed with Z axis up or local, right handed, Z axis down.
 	
 		public MSG_SAFETY_SET_ALLOWED_AREA () {
-			super("SAFETY_SET_ALLOWED_AREA", MSG_ID_SAFETY_SET_ALLOWED_AREA);
+			super(MSG_ID_SAFETY_SET_ALLOWED_AREA, (short)27, "SAFETY_SET_ALLOWED_AREA");
 		}
 
 		public MSG_SAFETY_SET_ALLOWED_AREA (byte[] bytes) {
-			super(bytes, "SAFETY_SET_ALLOWED_AREA", MSG_ID_SAFETY_SET_ALLOWED_AREA);
+			super(bytes, MSG_ID_SAFETY_SET_ALLOWED_AREA, (short)27, "SAFETY_SET_ALLOWED_AREA");
 		}
 	
-		public MSG_SAFETY_SET_ALLOWED_AREA (short systemId, short componentId, float p1x  , float p1y  , float p1z  , float p2x  , float p2y  , float p2z  , int target_system  , int target_component  , int frame  ) {
-			super(systemId, componentId);
+		public MSG_SAFETY_SET_ALLOWED_AREA (short sys, short comp, float p1x  , float p1y  , float p1z  , float p2x  , float p2y  , float p2z  , int target_system  , int target_component  , int frame  ) {
+			super(sys, comp, (short)27, "SAFETY_SET_ALLOWED_AREA");
 			this.p1x = p1x;
 			this.p1y = p1y;
 			this.p1z = p1z;
@@ -15473,11 +15054,6 @@ public class MAVLink {
 			this.frame = frame;
 		}
 
-		@Override
-		public int getLength() {
-			return 27;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 15;
@@ -15557,6 +15133,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SAFETY_SET_ALLOWED_AREA";
 			
 			p1x = buffer.getFloat(); // float
   			p1y = buffer.getFloat(); // float
@@ -15570,7 +15147,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(p1x); // float
   			buffer.putFloat(p1y); // float
@@ -15615,15 +15192,15 @@ public class MAVLink {
 		private int zmag; // Z Magnetic field (milli tesla)
 	
 		public MSG_SCALED_IMU () {
-			super("SCALED_IMU", MSG_ID_SCALED_IMU);
+			super(MSG_ID_SCALED_IMU, (short)22, "SCALED_IMU");
 		}
 
 		public MSG_SCALED_IMU (byte[] bytes) {
-			super(bytes, "SCALED_IMU", MSG_ID_SCALED_IMU);
+			super(bytes, MSG_ID_SCALED_IMU, (short)22, "SCALED_IMU");
 		}
 	
-		public MSG_SCALED_IMU (short systemId, short componentId, long time_boot_ms  , int xacc  , int yacc  , int zacc  , int xgyro  , int ygyro  , int zgyro  , int xmag  , int ymag  , int zmag  ) {
-			super(systemId, componentId);
+		public MSG_SCALED_IMU (short sys, short comp, long time_boot_ms  , int xacc  , int yacc  , int zacc  , int xgyro  , int ygyro  , int zgyro  , int xmag  , int ymag  , int zmag  ) {
+			super(sys, comp, (short)22, "SCALED_IMU");
 			this.time_boot_ms = time_boot_ms;
 			this.xacc = xacc;
 			this.yacc = yacc;
@@ -15636,11 +15213,6 @@ public class MAVLink {
 			this.zmag = zmag;
 		}
 
-		@Override
-		public int getLength() {
-			return 22;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 170;
@@ -15728,6 +15300,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SCALED_IMU";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			xacc = buffer.getShort(); // int16_t
@@ -15742,7 +15315,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putShort((short)(xacc)); // int16_t
@@ -15789,15 +15362,15 @@ public class MAVLink {
 		private int zmag; // Z Magnetic field (milli tesla)
 	
 		public MSG_SCALED_IMU2 () {
-			super("SCALED_IMU2", MSG_ID_SCALED_IMU2);
+			super(MSG_ID_SCALED_IMU2, (short)22, "SCALED_IMU2");
 		}
 
 		public MSG_SCALED_IMU2 (byte[] bytes) {
-			super(bytes, "SCALED_IMU2", MSG_ID_SCALED_IMU2);
+			super(bytes, MSG_ID_SCALED_IMU2, (short)22, "SCALED_IMU2");
 		}
 	
-		public MSG_SCALED_IMU2 (short systemId, short componentId, long time_boot_ms  , int xacc  , int yacc  , int zacc  , int xgyro  , int ygyro  , int zgyro  , int xmag  , int ymag  , int zmag  ) {
-			super(systemId, componentId);
+		public MSG_SCALED_IMU2 (short sys, short comp, long time_boot_ms  , int xacc  , int yacc  , int zacc  , int xgyro  , int ygyro  , int zgyro  , int xmag  , int ymag  , int zmag  ) {
+			super(sys, comp, (short)22, "SCALED_IMU2");
 			this.time_boot_ms = time_boot_ms;
 			this.xacc = xacc;
 			this.yacc = yacc;
@@ -15810,11 +15383,6 @@ public class MAVLink {
 			this.zmag = zmag;
 		}
 
-		@Override
-		public int getLength() {
-			return 22;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 76;
@@ -15902,6 +15470,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SCALED_IMU2";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			xacc = buffer.getShort(); // int16_t
@@ -15916,7 +15485,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putShort((short)(xacc)); // int16_t
@@ -15963,15 +15532,15 @@ public class MAVLink {
 		private int zmag; // Z Magnetic field (milli tesla)
 	
 		public MSG_SCALED_IMU3 () {
-			super("SCALED_IMU3", MSG_ID_SCALED_IMU3);
+			super(MSG_ID_SCALED_IMU3, (short)22, "SCALED_IMU3");
 		}
 
 		public MSG_SCALED_IMU3 (byte[] bytes) {
-			super(bytes, "SCALED_IMU3", MSG_ID_SCALED_IMU3);
+			super(bytes, MSG_ID_SCALED_IMU3, (short)22, "SCALED_IMU3");
 		}
 	
-		public MSG_SCALED_IMU3 (short systemId, short componentId, long time_boot_ms  , int xacc  , int yacc  , int zacc  , int xgyro  , int ygyro  , int zgyro  , int xmag  , int ymag  , int zmag  ) {
-			super(systemId, componentId);
+		public MSG_SCALED_IMU3 (short sys, short comp, long time_boot_ms  , int xacc  , int yacc  , int zacc  , int xgyro  , int ygyro  , int zgyro  , int xmag  , int ymag  , int zmag  ) {
+			super(sys, comp, (short)22, "SCALED_IMU3");
 			this.time_boot_ms = time_boot_ms;
 			this.xacc = xacc;
 			this.yacc = yacc;
@@ -15984,11 +15553,6 @@ public class MAVLink {
 			this.zmag = zmag;
 		}
 
-		@Override
-		public int getLength() {
-			return 22;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 46;
@@ -16076,6 +15640,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SCALED_IMU3";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			xacc = buffer.getShort(); // int16_t
@@ -16090,7 +15655,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putShort((short)(xacc)); // int16_t
@@ -16131,26 +15696,21 @@ public class MAVLink {
 		private int temperature; // Temperature measurement (0.01 degrees celsius)
 	
 		public MSG_SCALED_PRESSURE () {
-			super("SCALED_PRESSURE", MSG_ID_SCALED_PRESSURE);
+			super(MSG_ID_SCALED_PRESSURE, (short)14, "SCALED_PRESSURE");
 		}
 
 		public MSG_SCALED_PRESSURE (byte[] bytes) {
-			super(bytes, "SCALED_PRESSURE", MSG_ID_SCALED_PRESSURE);
+			super(bytes, MSG_ID_SCALED_PRESSURE, (short)14, "SCALED_PRESSURE");
 		}
 	
-		public MSG_SCALED_PRESSURE (short systemId, short componentId, long time_boot_ms  , float press_abs  , float press_diff  , int temperature  ) {
-			super(systemId, componentId);
+		public MSG_SCALED_PRESSURE (short sys, short comp, long time_boot_ms  , float press_abs  , float press_diff  , int temperature  ) {
+			super(sys, comp, (short)14, "SCALED_PRESSURE");
 			this.time_boot_ms = time_boot_ms;
 			this.press_abs = press_abs;
 			this.press_diff = press_diff;
 			this.temperature = temperature;
 		}
 
-		@Override
-		public int getLength() {
-			return 14;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 115;
@@ -16190,6 +15750,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SCALED_PRESSURE";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			press_abs = buffer.getFloat(); // float
@@ -16198,7 +15759,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putFloat(press_abs); // float
@@ -16227,26 +15788,21 @@ public class MAVLink {
 		private int temperature; // Temperature measurement (0.01 degrees celsius)
 	
 		public MSG_SCALED_PRESSURE2 () {
-			super("SCALED_PRESSURE2", MSG_ID_SCALED_PRESSURE2);
+			super(MSG_ID_SCALED_PRESSURE2, (short)14, "SCALED_PRESSURE2");
 		}
 
 		public MSG_SCALED_PRESSURE2 (byte[] bytes) {
-			super(bytes, "SCALED_PRESSURE2", MSG_ID_SCALED_PRESSURE2);
+			super(bytes, MSG_ID_SCALED_PRESSURE2, (short)14, "SCALED_PRESSURE2");
 		}
 	
-		public MSG_SCALED_PRESSURE2 (short systemId, short componentId, long time_boot_ms  , float press_abs  , float press_diff  , int temperature  ) {
-			super(systemId, componentId);
+		public MSG_SCALED_PRESSURE2 (short sys, short comp, long time_boot_ms  , float press_abs  , float press_diff  , int temperature  ) {
+			super(sys, comp, (short)14, "SCALED_PRESSURE2");
 			this.time_boot_ms = time_boot_ms;
 			this.press_abs = press_abs;
 			this.press_diff = press_diff;
 			this.temperature = temperature;
 		}
 
-		@Override
-		public int getLength() {
-			return 14;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 195;
@@ -16286,6 +15842,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SCALED_PRESSURE2";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			press_abs = buffer.getFloat(); // float
@@ -16294,7 +15851,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putFloat(press_abs); // float
@@ -16325,15 +15882,15 @@ public class MAVLink {
 		private int[] data = new int[70]; // serial data
 	
 		public MSG_SERIAL_CONTROL () {
-			super("SERIAL_CONTROL", MSG_ID_SERIAL_CONTROL);
+			super(MSG_ID_SERIAL_CONTROL, (short)10, "SERIAL_CONTROL");
 		}
 
 		public MSG_SERIAL_CONTROL (byte[] bytes) {
-			super(bytes, "SERIAL_CONTROL", MSG_ID_SERIAL_CONTROL);
+			super(bytes, MSG_ID_SERIAL_CONTROL, (short)10, "SERIAL_CONTROL");
 		}
 	
-		public MSG_SERIAL_CONTROL (short systemId, short componentId, long baudrate  , int timeout  , int device  , int flags  , int count  , int data [] ) {
-			super(systemId, componentId);
+		public MSG_SERIAL_CONTROL (short sys, short comp, long baudrate  , int timeout  , int device  , int flags  , int count  , int data [] ) {
+			super(sys, comp, (short)10, "SERIAL_CONTROL");
 			this.baudrate = baudrate;
 			this.timeout = timeout;
 			this.device = device;
@@ -16342,11 +15899,6 @@ public class MAVLink {
 			this.data = data;
 		}
 
-		@Override
-		public int getLength() {
-			return 10;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 220;
@@ -16402,6 +15954,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SERIAL_CONTROL";
 			
 			baudrate = buffer.getInt() & 0xffffffff; // uint32_t
   			timeout = buffer.getShort() & 0xffff; // uint16_t
@@ -16415,7 +15968,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(baudrate & 0xffffffff)); // uint32_t
   			buffer.putShort((short)(timeout & 0xffff)); // uint16_t
@@ -16457,15 +16010,15 @@ public class MAVLink {
 		private int port; // Servo output port (set of 8 outputs = 1 port). Most MAVs will just use one, but this allows to encode more than 8 servos.
 	
 		public MSG_SERVO_OUTPUT_RAW () {
-			super("SERVO_OUTPUT_RAW", MSG_ID_SERVO_OUTPUT_RAW);
+			super(MSG_ID_SERVO_OUTPUT_RAW, (short)21, "SERVO_OUTPUT_RAW");
 		}
 
 		public MSG_SERVO_OUTPUT_RAW (byte[] bytes) {
-			super(bytes, "SERVO_OUTPUT_RAW", MSG_ID_SERVO_OUTPUT_RAW);
+			super(bytes, MSG_ID_SERVO_OUTPUT_RAW, (short)21, "SERVO_OUTPUT_RAW");
 		}
 	
-		public MSG_SERVO_OUTPUT_RAW (short systemId, short componentId, long time_usec  , int servo1_raw  , int servo2_raw  , int servo3_raw  , int servo4_raw  , int servo5_raw  , int servo6_raw  , int servo7_raw  , int servo8_raw  , int port  ) {
-			super(systemId, componentId);
+		public MSG_SERVO_OUTPUT_RAW (short sys, short comp, long time_usec  , int servo1_raw  , int servo2_raw  , int servo3_raw  , int servo4_raw  , int servo5_raw  , int servo6_raw  , int servo7_raw  , int servo8_raw  , int port  ) {
+			super(sys, comp, (short)21, "SERVO_OUTPUT_RAW");
 			this.time_usec = time_usec;
 			this.servo1_raw = servo1_raw;
 			this.servo2_raw = servo2_raw;
@@ -16478,11 +16031,6 @@ public class MAVLink {
 			this.port = port;
 		}
 
-		@Override
-		public int getLength() {
-			return 21;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 222;
@@ -16570,6 +16118,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SERVO_OUTPUT_RAW";
 			
 			time_usec = buffer.getInt() & 0xffffffff; // uint32_t
   			servo1_raw = buffer.getShort() & 0xffff; // uint16_t
@@ -16584,7 +16133,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_usec & 0xffffffff)); // uint32_t
   			buffer.putShort((short)(servo1_raw & 0xffff)); // uint16_t
@@ -16626,15 +16175,15 @@ public class MAVLink {
 		private int target_component; // Component ID
 	
 		public MSG_SET_ACTUATOR_CONTROL_TARGET () {
-			super("SET_ACTUATOR_CONTROL_TARGET", MSG_ID_SET_ACTUATOR_CONTROL_TARGET);
+			super(MSG_ID_SET_ACTUATOR_CONTROL_TARGET, (short)71, "SET_ACTUATOR_CONTROL_TARGET");
 		}
 
 		public MSG_SET_ACTUATOR_CONTROL_TARGET (byte[] bytes) {
-			super(bytes, "SET_ACTUATOR_CONTROL_TARGET", MSG_ID_SET_ACTUATOR_CONTROL_TARGET);
+			super(bytes, MSG_ID_SET_ACTUATOR_CONTROL_TARGET, (short)71, "SET_ACTUATOR_CONTROL_TARGET");
 		}
 	
-		public MSG_SET_ACTUATOR_CONTROL_TARGET (short systemId, short componentId, long time_usec  , float controls [] , int group_mlx  , int target_system  , int target_component  ) {
-			super(systemId, componentId);
+		public MSG_SET_ACTUATOR_CONTROL_TARGET (short sys, short comp, long time_usec  , float controls [] , int group_mlx  , int target_system  , int target_component  ) {
+			super(sys, comp, (short)71, "SET_ACTUATOR_CONTROL_TARGET");
 			this.time_usec = time_usec;
 			this.controls = controls;
 			this.group_mlx = group_mlx;
@@ -16642,11 +16191,6 @@ public class MAVLink {
 			this.target_component = target_component;
 		}
 
-		@Override
-		public int getLength() {
-			return 71;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 168;
@@ -16694,6 +16238,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SET_ACTUATOR_CONTROL_TARGET";
 			
 			time_usec = buffer.getLong(); // uint64_t
   			for(int c=0; c<8; ++c) {
@@ -16706,7 +16251,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_usec); // uint64_t
   			for(int c=0; c<8; ++c) {
@@ -16745,15 +16290,15 @@ public class MAVLink {
 		private int type_mask; // Mappings: If any of these bits are set, the corresponding input should be ignored: bit 1: body roll rate, bit 2: body pitch rate, bit 3: body yaw rate. bit 4-bit 6: reserved, bit 7: throttle, bit 8: attitude
 	
 		public MSG_SET_ATTITUDE_TARGET () {
-			super("SET_ATTITUDE_TARGET", MSG_ID_SET_ATTITUDE_TARGET);
+			super(MSG_ID_SET_ATTITUDE_TARGET, (short)27, "SET_ATTITUDE_TARGET");
 		}
 
 		public MSG_SET_ATTITUDE_TARGET (byte[] bytes) {
-			super(bytes, "SET_ATTITUDE_TARGET", MSG_ID_SET_ATTITUDE_TARGET);
+			super(bytes, MSG_ID_SET_ATTITUDE_TARGET, (short)27, "SET_ATTITUDE_TARGET");
 		}
 	
-		public MSG_SET_ATTITUDE_TARGET (short systemId, short componentId, long time_boot_ms  , float q [] , float body_roll_rate  , float body_pitch_rate  , float body_yaw_rate  , float thrust  , int target_system  , int target_component  , int type_mask  ) {
-			super(systemId, componentId);
+		public MSG_SET_ATTITUDE_TARGET (short sys, short comp, long time_boot_ms  , float q [] , float body_roll_rate  , float body_pitch_rate  , float body_yaw_rate  , float thrust  , int target_system  , int target_component  , int type_mask  ) {
+			super(sys, comp, (short)27, "SET_ATTITUDE_TARGET");
 			this.time_boot_ms = time_boot_ms;
 			this.q = q;
 			this.body_roll_rate = body_roll_rate;
@@ -16765,11 +16310,6 @@ public class MAVLink {
 			this.type_mask = type_mask;
 		}
 
-		@Override
-		public int getLength() {
-			return 27;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 49;
@@ -16849,6 +16389,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SET_ATTITUDE_TARGET";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			for(int c=0; c<4; ++c) {
@@ -16865,7 +16406,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			for(int c=0; c<4; ++c) {
@@ -16906,15 +16447,15 @@ public class MAVLink {
 		private int trigger_pin; // Trigger pin, 0-3 for PtGrey FireFly
 	
 		public MSG_SET_CAM_SHUTTER () {
-			super("SET_CAM_SHUTTER", MSG_ID_SET_CAM_SHUTTER);
+			super(MSG_ID_SET_CAM_SHUTTER, (short)11, "SET_CAM_SHUTTER");
 		}
 
 		public MSG_SET_CAM_SHUTTER (byte[] bytes) {
-			super(bytes, "SET_CAM_SHUTTER", MSG_ID_SET_CAM_SHUTTER);
+			super(bytes, MSG_ID_SET_CAM_SHUTTER, (short)11, "SET_CAM_SHUTTER");
 		}
 	
-		public MSG_SET_CAM_SHUTTER (short systemId, short componentId, float gain  , int interval  , int exposure  , int cam_no  , int cam_mode  , int trigger_pin  ) {
-			super(systemId, componentId);
+		public MSG_SET_CAM_SHUTTER (short sys, short comp, float gain  , int interval  , int exposure  , int cam_no  , int cam_mode  , int trigger_pin  ) {
+			super(sys, comp, (short)11, "SET_CAM_SHUTTER");
 			this.gain = gain;
 			this.interval = interval;
 			this.exposure = exposure;
@@ -16923,11 +16464,6 @@ public class MAVLink {
 			this.trigger_pin = trigger_pin;
 		}
 
-		@Override
-		public int getLength() {
-			return 11;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 108;
@@ -16983,6 +16519,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SET_CAM_SHUTTER";
 			
 			gain = buffer.getFloat(); // float
   			interval = buffer.getShort() & 0xffff; // uint16_t
@@ -16993,7 +16530,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(gain); // float
   			buffer.putShort((short)(interval & 0xffff)); // uint16_t
@@ -17026,26 +16563,21 @@ public class MAVLink {
 		private int target_system; // System ID
 	
 		public MSG_SET_GPS_GLOBAL_ORIGIN () {
-			super("SET_GPS_GLOBAL_ORIGIN", MSG_ID_SET_GPS_GLOBAL_ORIGIN);
+			super(MSG_ID_SET_GPS_GLOBAL_ORIGIN, (short)13, "SET_GPS_GLOBAL_ORIGIN");
 		}
 
 		public MSG_SET_GPS_GLOBAL_ORIGIN (byte[] bytes) {
-			super(bytes, "SET_GPS_GLOBAL_ORIGIN", MSG_ID_SET_GPS_GLOBAL_ORIGIN);
+			super(bytes, MSG_ID_SET_GPS_GLOBAL_ORIGIN, (short)13, "SET_GPS_GLOBAL_ORIGIN");
 		}
 	
-		public MSG_SET_GPS_GLOBAL_ORIGIN (short systemId, short componentId, int latitude  , int longitude  , int altitude  , int target_system  ) {
-			super(systemId, componentId);
+		public MSG_SET_GPS_GLOBAL_ORIGIN (short sys, short comp, int latitude  , int longitude  , int altitude  , int target_system  ) {
+			super(sys, comp, (short)13, "SET_GPS_GLOBAL_ORIGIN");
 			this.latitude = latitude;
 			this.longitude = longitude;
 			this.altitude = altitude;
 			this.target_system = target_system;
 		}
 
-		@Override
-		public int getLength() {
-			return 13;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 41;
@@ -17085,6 +16617,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SET_GPS_GLOBAL_ORIGIN";
 			
 			latitude = buffer.getInt(); // int32_t
   			longitude = buffer.getInt(); // int32_t
@@ -17093,7 +16626,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(latitude)); // int32_t
   			buffer.putInt((int)(longitude)); // int32_t
@@ -17121,25 +16654,20 @@ public class MAVLink {
 		private int base_mode; // The new base mode
 	
 		public MSG_SET_MODE () {
-			super("SET_MODE", MSG_ID_SET_MODE);
+			super(MSG_ID_SET_MODE, (short)6, "SET_MODE");
 		}
 
 		public MSG_SET_MODE (byte[] bytes) {
-			super(bytes, "SET_MODE", MSG_ID_SET_MODE);
+			super(bytes, MSG_ID_SET_MODE, (short)6, "SET_MODE");
 		}
 	
-		public MSG_SET_MODE (short systemId, short componentId, long custom_mode  , int target_system  , int base_mode  ) {
-			super(systemId, componentId);
+		public MSG_SET_MODE (short sys, short comp, long custom_mode  , int target_system  , int base_mode  ) {
+			super(sys, comp, (short)6, "SET_MODE");
 			this.custom_mode = custom_mode;
 			this.target_system = target_system;
 			this.base_mode = base_mode;
 		}
 
-		@Override
-		public int getLength() {
-			return 6;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 89;
@@ -17171,6 +16699,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SET_MODE";
 			
 			custom_mode = buffer.getInt() & 0xffffffff; // uint32_t
   			target_system = (int)buffer.get() & 0xff; // uint8_t
@@ -17178,7 +16707,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(custom_mode & 0xffffffff)); // uint32_t
   			buffer.put((byte)(target_system & 0xff)); // uint8_t
@@ -17207,15 +16736,15 @@ public class MAVLink {
 		private int target_component; // Component ID
 	
 		public MSG_SET_POSITION_CONTROL_OFFSET () {
-			super("SET_POSITION_CONTROL_OFFSET", MSG_ID_SET_POSITION_CONTROL_OFFSET);
+			super(MSG_ID_SET_POSITION_CONTROL_OFFSET, (short)18, "SET_POSITION_CONTROL_OFFSET");
 		}
 
 		public MSG_SET_POSITION_CONTROL_OFFSET (byte[] bytes) {
-			super(bytes, "SET_POSITION_CONTROL_OFFSET", MSG_ID_SET_POSITION_CONTROL_OFFSET);
+			super(bytes, MSG_ID_SET_POSITION_CONTROL_OFFSET, (short)18, "SET_POSITION_CONTROL_OFFSET");
 		}
 	
-		public MSG_SET_POSITION_CONTROL_OFFSET (short systemId, short componentId, float x  , float y  , float z  , float yaw  , int target_system  , int target_component  ) {
-			super(systemId, componentId);
+		public MSG_SET_POSITION_CONTROL_OFFSET (short sys, short comp, float x  , float y  , float z  , float yaw  , int target_system  , int target_component  ) {
+			super(sys, comp, (short)18, "SET_POSITION_CONTROL_OFFSET");
 			this.x = x;
 			this.y = y;
 			this.z = z;
@@ -17224,11 +16753,6 @@ public class MAVLink {
 			this.target_component = target_component;
 		}
 
-		@Override
-		public int getLength() {
-			return 18;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 22;
@@ -17284,6 +16808,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SET_POSITION_CONTROL_OFFSET";
 			
 			x = buffer.getFloat(); // float
   			y = buffer.getFloat(); // float
@@ -17294,7 +16819,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(x); // float
   			buffer.putFloat(y); // float
@@ -17339,15 +16864,15 @@ public class MAVLink {
 		private int coordinate_frame; // Valid options are: MAV_FRAME_GLOBAL_INT = 5, MAV_FRAME_GLOBAL_RELATIVE_ALT_INT = 6, MAV_FRAME_GLOBAL_TERRAIN_ALT_INT = 11
 	
 		public MSG_SET_POSITION_TARGET_GLOBAL_INT () {
-			super("SET_POSITION_TARGET_GLOBAL_INT", MSG_ID_SET_POSITION_TARGET_GLOBAL_INT);
+			super(MSG_ID_SET_POSITION_TARGET_GLOBAL_INT, (short)53, "SET_POSITION_TARGET_GLOBAL_INT");
 		}
 
 		public MSG_SET_POSITION_TARGET_GLOBAL_INT (byte[] bytes) {
-			super(bytes, "SET_POSITION_TARGET_GLOBAL_INT", MSG_ID_SET_POSITION_TARGET_GLOBAL_INT);
+			super(bytes, MSG_ID_SET_POSITION_TARGET_GLOBAL_INT, (short)53, "SET_POSITION_TARGET_GLOBAL_INT");
 		}
 	
-		public MSG_SET_POSITION_TARGET_GLOBAL_INT (short systemId, short componentId, long time_boot_ms  , int lat_int  , int lon_int  , float alt  , float vx  , float vy  , float vz  , float afx  , float afy  , float afz  , float yaw  , float yaw_rate  , int type_mask  , int target_system  , int target_component  , int coordinate_frame  ) {
-			super(systemId, componentId);
+		public MSG_SET_POSITION_TARGET_GLOBAL_INT (short sys, short comp, long time_boot_ms  , int lat_int  , int lon_int  , float alt  , float vx  , float vy  , float vz  , float afx  , float afy  , float afz  , float yaw  , float yaw_rate  , int type_mask  , int target_system  , int target_component  , int coordinate_frame  ) {
+			super(sys, comp, (short)53, "SET_POSITION_TARGET_GLOBAL_INT");
 			this.time_boot_ms = time_boot_ms;
 			this.lat_int = lat_int;
 			this.lon_int = lon_int;
@@ -17366,11 +16891,6 @@ public class MAVLink {
 			this.coordinate_frame = coordinate_frame;
 		}
 
-		@Override
-		public int getLength() {
-			return 53;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 5;
@@ -17506,6 +17026,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SET_POSITION_TARGET_GLOBAL_INT";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			lat_int = buffer.getInt(); // int32_t
@@ -17526,7 +17047,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putInt((int)(lat_int)); // int32_t
@@ -17591,15 +17112,15 @@ public class MAVLink {
 		private int coordinate_frame; // Valid options are: MAV_FRAME_LOCAL_NED = 1, MAV_FRAME_LOCAL_OFFSET_NED = 7, MAV_FRAME_BODY_NED = 8, MAV_FRAME_BODY_OFFSET_NED = 9
 	
 		public MSG_SET_POSITION_TARGET_LOCAL_NED () {
-			super("SET_POSITION_TARGET_LOCAL_NED", MSG_ID_SET_POSITION_TARGET_LOCAL_NED);
+			super(MSG_ID_SET_POSITION_TARGET_LOCAL_NED, (short)53, "SET_POSITION_TARGET_LOCAL_NED");
 		}
 
 		public MSG_SET_POSITION_TARGET_LOCAL_NED (byte[] bytes) {
-			super(bytes, "SET_POSITION_TARGET_LOCAL_NED", MSG_ID_SET_POSITION_TARGET_LOCAL_NED);
+			super(bytes, MSG_ID_SET_POSITION_TARGET_LOCAL_NED, (short)53, "SET_POSITION_TARGET_LOCAL_NED");
 		}
 	
-		public MSG_SET_POSITION_TARGET_LOCAL_NED (short systemId, short componentId, long time_boot_ms  , float x  , float y  , float z  , float vx  , float vy  , float vz  , float afx  , float afy  , float afz  , float yaw  , float yaw_rate  , int type_mask  , int target_system  , int target_component  , int coordinate_frame  ) {
-			super(systemId, componentId);
+		public MSG_SET_POSITION_TARGET_LOCAL_NED (short sys, short comp, long time_boot_ms  , float x  , float y  , float z  , float vx  , float vy  , float vz  , float afx  , float afy  , float afz  , float yaw  , float yaw_rate  , int type_mask  , int target_system  , int target_component  , int coordinate_frame  ) {
+			super(sys, comp, (short)53, "SET_POSITION_TARGET_LOCAL_NED");
 			this.time_boot_ms = time_boot_ms;
 			this.x = x;
 			this.y = y;
@@ -17618,11 +17139,6 @@ public class MAVLink {
 			this.coordinate_frame = coordinate_frame;
 		}
 
-		@Override
-		public int getLength() {
-			return 53;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 143;
@@ -17758,6 +17274,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SET_POSITION_TARGET_LOCAL_NED";
 			
 			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
   			x = buffer.getFloat(); // float
@@ -17778,7 +17295,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
   			buffer.putFloat(x); // float
@@ -17848,15 +17365,15 @@ public class MAVLink {
 		private float vd; // True velocity in m/s in DOWN direction in earth-fixed NED frame
 	
 		public MSG_SIM_STATE () {
-			super("SIM_STATE", MSG_ID_SIM_STATE);
+			super(MSG_ID_SIM_STATE, (short)84, "SIM_STATE");
 		}
 
 		public MSG_SIM_STATE (byte[] bytes) {
-			super(bytes, "SIM_STATE", MSG_ID_SIM_STATE);
+			super(bytes, MSG_ID_SIM_STATE, (short)84, "SIM_STATE");
 		}
 	
-		public MSG_SIM_STATE (short systemId, short componentId, float q1  , float q2  , float q3  , float q4  , float roll  , float pitch  , float yaw  , float xacc  , float yacc  , float zacc  , float xgyro  , float ygyro  , float zgyro  , float lat  , float lon  , float alt  , float std_dev_horz  , float std_dev_vert  , float vn  , float ve  , float vd  ) {
-			super(systemId, componentId);
+		public MSG_SIM_STATE (short sys, short comp, float q1  , float q2  , float q3  , float q4  , float roll  , float pitch  , float yaw  , float xacc  , float yacc  , float zacc  , float xgyro  , float ygyro  , float zgyro  , float lat  , float lon  , float alt  , float std_dev_horz  , float std_dev_vert  , float vn  , float ve  , float vd  ) {
+			super(sys, comp, (short)84, "SIM_STATE");
 			this.q1 = q1;
 			this.q2 = q2;
 			this.q3 = q3;
@@ -17880,11 +17397,6 @@ public class MAVLink {
 			this.vd = vd;
 		}
 
-		@Override
-		public int getLength() {
-			return 84;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 32;
@@ -18060,6 +17572,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SIM_STATE";
 			
 			q1 = buffer.getFloat(); // float
   			q2 = buffer.getFloat(); // float
@@ -18085,7 +17598,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(q1); // float
   			buffer.putFloat(q2); // float
@@ -18146,24 +17659,19 @@ public class MAVLink {
 		private char[] text = new char[50]; // Status text message, without null termination character
 	
 		public MSG_STATUSTEXT () {
-			super("STATUSTEXT", MSG_ID_STATUSTEXT);
+			super(MSG_ID_STATUSTEXT, (short)2, "STATUSTEXT");
 		}
 
 		public MSG_STATUSTEXT (byte[] bytes) {
-			super(bytes, "STATUSTEXT", MSG_ID_STATUSTEXT);
+			super(bytes, MSG_ID_STATUSTEXT, (short)2, "STATUSTEXT");
 		}
 	
-		public MSG_STATUSTEXT (short systemId, short componentId, int severity  , char text [] ) {
-			super(systemId, componentId);
+		public MSG_STATUSTEXT (short sys, short comp, int severity  , char text [] ) {
+			super(sys, comp, (short)2, "STATUSTEXT");
 			this.severity = severity;
 			this.text = text;
 		}
 
-		@Override
-		public int getLength() {
-			return 2;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 83;
@@ -18187,6 +17695,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "STATUSTEXT";
 			
 			severity = (int)buffer.get() & 0xff; // uint8_t
   			for(int c=0; c<50; ++c) {
@@ -18196,7 +17705,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.put((byte)(severity & 0xff)); // uint8_t
   			for(int c=0; c<50; ++c) {
@@ -18222,24 +17731,19 @@ public class MAVLink {
 		private long time_boot_ms; // Timestamp of the component clock since boot time in milliseconds.
 	
 		public MSG_SYSTEM_TIME () {
-			super("SYSTEM_TIME", MSG_ID_SYSTEM_TIME);
+			super(MSG_ID_SYSTEM_TIME, (short)68, "SYSTEM_TIME");
 		}
 
 		public MSG_SYSTEM_TIME (byte[] bytes) {
-			super(bytes, "SYSTEM_TIME", MSG_ID_SYSTEM_TIME);
+			super(bytes, MSG_ID_SYSTEM_TIME, (short)68, "SYSTEM_TIME");
 		}
 	
-		public MSG_SYSTEM_TIME (short systemId, short componentId, long time_unix_usec  , long time_boot_ms  ) {
-			super(systemId, componentId);
+		public MSG_SYSTEM_TIME (short sys, short comp, long time_unix_usec  , long time_boot_ms  ) {
+			super(sys, comp, (short)68, "SYSTEM_TIME");
 			this.time_unix_usec = time_unix_usec;
 			this.time_boot_ms = time_boot_ms;
 		}
 
-		@Override
-		public int getLength() {
-			return 68;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 137;
@@ -18263,13 +17767,14 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SYSTEM_TIME";
 			
 			time_unix_usec = buffer.getLong(); // uint64_t
   			time_boot_ms = buffer.getInt() & 0xffffffff; // uint32_t
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(time_unix_usec); // uint64_t
   			buffer.putInt((int)(time_boot_ms & 0xffffffff)); // uint32_t
@@ -18303,15 +17808,15 @@ public class MAVLink {
 		private int battery_remaining; // Remaining battery energy: (0%: 0, 100%: 100), -1: autopilot estimate the remaining battery
 	
 		public MSG_SYS_STATUS () {
-			super("SYS_STATUS", MSG_ID_SYS_STATUS);
+			super(MSG_ID_SYS_STATUS, (short)31, "SYS_STATUS");
 		}
 
 		public MSG_SYS_STATUS (byte[] bytes) {
-			super(bytes, "SYS_STATUS", MSG_ID_SYS_STATUS);
+			super(bytes, MSG_ID_SYS_STATUS, (short)31, "SYS_STATUS");
 		}
 	
-		public MSG_SYS_STATUS (short systemId, short componentId, long onboard_control_sensors_present  , long onboard_control_sensors_enabled  , long onboard_control_sensors_health  , int load  , int voltage_battery  , int current_battery  , int drop_rate_comm  , int errors_comm  , int errors_count1  , int errors_count2  , int errors_count3  , int errors_count4  , int battery_remaining  ) {
-			super(systemId, componentId);
+		public MSG_SYS_STATUS (short sys, short comp, long onboard_control_sensors_present  , long onboard_control_sensors_enabled  , long onboard_control_sensors_health  , int load  , int voltage_battery  , int current_battery  , int drop_rate_comm  , int errors_comm  , int errors_count1  , int errors_count2  , int errors_count3  , int errors_count4  , int battery_remaining  ) {
+			super(sys, comp, (short)31, "SYS_STATUS");
 			this.onboard_control_sensors_present = onboard_control_sensors_present;
 			this.onboard_control_sensors_enabled = onboard_control_sensors_enabled;
 			this.onboard_control_sensors_health = onboard_control_sensors_health;
@@ -18327,11 +17832,6 @@ public class MAVLink {
 			this.battery_remaining = battery_remaining;
 		}
 
-		@Override
-		public int getLength() {
-			return 31;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 124;
@@ -18443,6 +17943,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "SYS_STATUS";
 			
 			onboard_control_sensors_present = buffer.getInt() & 0xffffffff; // uint32_t
   			onboard_control_sensors_enabled = buffer.getInt() & 0xffffffff; // uint32_t
@@ -18460,7 +17961,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(onboard_control_sensors_present & 0xffffffff)); // uint32_t
   			buffer.putInt((int)(onboard_control_sensors_enabled & 0xffffffff)); // uint32_t
@@ -18505,24 +18006,19 @@ public class MAVLink {
 		private int lon; // Longitude (degrees *10^7)
 	
 		public MSG_TERRAIN_CHECK () {
-			super("TERRAIN_CHECK", MSG_ID_TERRAIN_CHECK);
+			super(MSG_ID_TERRAIN_CHECK, (short)8, "TERRAIN_CHECK");
 		}
 
 		public MSG_TERRAIN_CHECK (byte[] bytes) {
-			super(bytes, "TERRAIN_CHECK", MSG_ID_TERRAIN_CHECK);
+			super(bytes, MSG_ID_TERRAIN_CHECK, (short)8, "TERRAIN_CHECK");
 		}
 	
-		public MSG_TERRAIN_CHECK (short systemId, short componentId, int lat  , int lon  ) {
-			super(systemId, componentId);
+		public MSG_TERRAIN_CHECK (short sys, short comp, int lat  , int lon  ) {
+			super(sys, comp, (short)8, "TERRAIN_CHECK");
 			this.lat = lat;
 			this.lon = lon;
 		}
 
-		@Override
-		public int getLength() {
-			return 8;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 203;
@@ -18546,13 +18042,14 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "TERRAIN_CHECK";
 			
 			lat = buffer.getInt(); // int32_t
   			lon = buffer.getInt(); // int32_t
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(lat)); // int32_t
   			buffer.putInt((int)(lon)); // int32_t
@@ -18578,15 +18075,15 @@ public class MAVLink {
 		private int gridbit; // bit within the terrain request mask
 	
 		public MSG_TERRAIN_DATA () {
-			super("TERRAIN_DATA", MSG_ID_TERRAIN_DATA);
+			super(MSG_ID_TERRAIN_DATA, (short)13, "TERRAIN_DATA");
 		}
 
 		public MSG_TERRAIN_DATA (byte[] bytes) {
-			super(bytes, "TERRAIN_DATA", MSG_ID_TERRAIN_DATA);
+			super(bytes, MSG_ID_TERRAIN_DATA, (short)13, "TERRAIN_DATA");
 		}
 	
-		public MSG_TERRAIN_DATA (short systemId, short componentId, int lat  , int lon  , int grid_spacing  , int data [] , int gridbit  ) {
-			super(systemId, componentId);
+		public MSG_TERRAIN_DATA (short sys, short comp, int lat  , int lon  , int grid_spacing  , int data [] , int gridbit  ) {
+			super(sys, comp, (short)13, "TERRAIN_DATA");
 			this.lat = lat;
 			this.lon = lon;
 			this.grid_spacing = grid_spacing;
@@ -18594,11 +18091,6 @@ public class MAVLink {
 			this.gridbit = gridbit;
 		}
 
-		@Override
-		public int getLength() {
-			return 13;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 229;
@@ -18646,6 +18138,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "TERRAIN_DATA";
 			
 			lat = buffer.getInt(); // int32_t
   			lon = buffer.getInt(); // int32_t
@@ -18658,7 +18151,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(lat)); // int32_t
   			buffer.putInt((int)(lon)); // int32_t
@@ -18695,15 +18188,15 @@ public class MAVLink {
 		private int loaded; // Number of 4x4 terrain blocks in memory
 	
 		public MSG_TERRAIN_REPORT () {
-			super("TERRAIN_REPORT", MSG_ID_TERRAIN_REPORT);
+			super(MSG_ID_TERRAIN_REPORT, (short)22, "TERRAIN_REPORT");
 		}
 
 		public MSG_TERRAIN_REPORT (byte[] bytes) {
-			super(bytes, "TERRAIN_REPORT", MSG_ID_TERRAIN_REPORT);
+			super(bytes, MSG_ID_TERRAIN_REPORT, (short)22, "TERRAIN_REPORT");
 		}
 	
-		public MSG_TERRAIN_REPORT (short systemId, short componentId, int lat  , int lon  , float terrain_height  , float current_height  , int spacing  , int pending  , int loaded  ) {
-			super(systemId, componentId);
+		public MSG_TERRAIN_REPORT (short sys, short comp, int lat  , int lon  , float terrain_height  , float current_height  , int spacing  , int pending  , int loaded  ) {
+			super(sys, comp, (short)22, "TERRAIN_REPORT");
 			this.lat = lat;
 			this.lon = lon;
 			this.terrain_height = terrain_height;
@@ -18713,11 +18206,6 @@ public class MAVLink {
 			this.loaded = loaded;
 		}
 
-		@Override
-		public int getLength() {
-			return 22;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 1;
@@ -18781,6 +18269,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "TERRAIN_REPORT";
 			
 			lat = buffer.getInt(); // int32_t
   			lon = buffer.getInt(); // int32_t
@@ -18792,7 +18281,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(lat)); // int32_t
   			buffer.putInt((int)(lon)); // int32_t
@@ -18827,26 +18316,21 @@ public class MAVLink {
 		private int grid_spacing; // Grid spacing in meters
 	
 		public MSG_TERRAIN_REQUEST () {
-			super("TERRAIN_REQUEST", MSG_ID_TERRAIN_REQUEST);
+			super(MSG_ID_TERRAIN_REQUEST, (short)74, "TERRAIN_REQUEST");
 		}
 
 		public MSG_TERRAIN_REQUEST (byte[] bytes) {
-			super(bytes, "TERRAIN_REQUEST", MSG_ID_TERRAIN_REQUEST);
+			super(bytes, MSG_ID_TERRAIN_REQUEST, (short)74, "TERRAIN_REQUEST");
 		}
 	
-		public MSG_TERRAIN_REQUEST (short systemId, short componentId, long mask  , int lat  , int lon  , int grid_spacing  ) {
-			super(systemId, componentId);
+		public MSG_TERRAIN_REQUEST (short sys, short comp, long mask  , int lat  , int lon  , int grid_spacing  ) {
+			super(sys, comp, (short)74, "TERRAIN_REQUEST");
 			this.mask = mask;
 			this.lat = lat;
 			this.lon = lon;
 			this.grid_spacing = grid_spacing;
 		}
 
-		@Override
-		public int getLength() {
-			return 74;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 6;
@@ -18886,6 +18370,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "TERRAIN_REQUEST";
 			
 			mask = buffer.getLong(); // uint64_t
   			lat = buffer.getInt(); // int32_t
@@ -18894,7 +18379,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(mask); // uint64_t
   			buffer.putInt((int)(lat)); // int32_t
@@ -18921,24 +18406,19 @@ public class MAVLink {
 		private long ts1; // Time sync timestamp 2
 	
 		public MSG_TIMESYNC () {
-			super("TIMESYNC", MSG_ID_TIMESYNC);
+			super(MSG_ID_TIMESYNC, (short)128, "TIMESYNC");
 		}
 
 		public MSG_TIMESYNC (byte[] bytes) {
-			super(bytes, "TIMESYNC", MSG_ID_TIMESYNC);
+			super(bytes, MSG_ID_TIMESYNC, (short)128, "TIMESYNC");
 		}
 	
-		public MSG_TIMESYNC (short systemId, short componentId, long tc1  , long ts1  ) {
-			super(systemId, componentId);
+		public MSG_TIMESYNC (short sys, short comp, long tc1  , long ts1  ) {
+			super(sys, comp, (short)128, "TIMESYNC");
 			this.tc1 = tc1;
 			this.ts1 = ts1;
 		}
 
-		@Override
-		public int getLength() {
-			return 128;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 34;
@@ -18962,13 +18442,14 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "TIMESYNC";
 			
 			tc1 = buffer.getLong(); // int64_t
   			ts1 = buffer.getLong(); // int64_t
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(tc1); // int64_t
   			buffer.putLong(ts1); // int64_t
@@ -18994,15 +18475,15 @@ public class MAVLink {
 		private int[] payload = new int[249]; // Variable length payload. The length is defined by the remaining message length when subtracting the header and other fields.  The entire content of this block is opaque unless you understand any the encoding message_type.  The particular encoding used can be extension specific and might not always be documented as part of the mavlink specification.
 	
 		public MSG_V2_EXTENSION () {
-			super("V2_EXTENSION", MSG_ID_V2_EXTENSION);
+			super(MSG_ID_V2_EXTENSION, (short)6, "V2_EXTENSION");
 		}
 
 		public MSG_V2_EXTENSION (byte[] bytes) {
-			super(bytes, "V2_EXTENSION", MSG_ID_V2_EXTENSION);
+			super(bytes, MSG_ID_V2_EXTENSION, (short)6, "V2_EXTENSION");
 		}
 	
-		public MSG_V2_EXTENSION (short systemId, short componentId, int message_type  , int target_network  , int target_system  , int target_component  , int payload [] ) {
-			super(systemId, componentId);
+		public MSG_V2_EXTENSION (short sys, short comp, int message_type  , int target_network  , int target_system  , int target_component  , int payload [] ) {
+			super(sys, comp, (short)6, "V2_EXTENSION");
 			this.message_type = message_type;
 			this.target_network = target_network;
 			this.target_system = target_system;
@@ -19010,11 +18491,6 @@ public class MAVLink {
 			this.payload = payload;
 		}
 
-		@Override
-		public int getLength() {
-			return 6;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 48;
@@ -19062,6 +18538,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "V2_EXTENSION";
 			
 			message_type = buffer.getShort() & 0xffff; // uint16_t
   			target_network = (int)buffer.get() & 0xff; // uint8_t
@@ -19074,7 +18551,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(message_type & 0xffff)); // uint16_t
   			buffer.put((byte)(target_network & 0xff)); // uint8_t
@@ -19110,15 +18587,15 @@ public class MAVLink {
 		private int throttle; // Current throttle setting in integer percent, 0 to 100
 	
 		public MSG_VFR_HUD () {
-			super("VFR_HUD", MSG_ID_VFR_HUD);
+			super(MSG_ID_VFR_HUD, (short)20, "VFR_HUD");
 		}
 
 		public MSG_VFR_HUD (byte[] bytes) {
-			super(bytes, "VFR_HUD", MSG_ID_VFR_HUD);
+			super(bytes, MSG_ID_VFR_HUD, (short)20, "VFR_HUD");
 		}
 	
-		public MSG_VFR_HUD (short systemId, short componentId, float airspeed  , float groundspeed  , float alt  , float climb  , int heading  , int throttle  ) {
-			super(systemId, componentId);
+		public MSG_VFR_HUD (short sys, short comp, float airspeed  , float groundspeed  , float alt  , float climb  , int heading  , int throttle  ) {
+			super(sys, comp, (short)20, "VFR_HUD");
 			this.airspeed = airspeed;
 			this.groundspeed = groundspeed;
 			this.alt = alt;
@@ -19127,11 +18604,6 @@ public class MAVLink {
 			this.throttle = throttle;
 		}
 
-		@Override
-		public int getLength() {
-			return 20;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 20;
@@ -19187,6 +18659,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "VFR_HUD";
 			
 			airspeed = buffer.getFloat(); // float
   			groundspeed = buffer.getFloat(); // float
@@ -19197,7 +18670,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putFloat(airspeed); // float
   			buffer.putFloat(groundspeed); // float
@@ -19230,15 +18703,15 @@ public class MAVLink {
 		private float yaw; // Yaw angle in rad
 	
 		public MSG_VICON_POSITION_ESTIMATE () {
-			super("VICON_POSITION_ESTIMATE", MSG_ID_VICON_POSITION_ESTIMATE);
+			super(MSG_ID_VICON_POSITION_ESTIMATE, (short)88, "VICON_POSITION_ESTIMATE");
 		}
 
 		public MSG_VICON_POSITION_ESTIMATE (byte[] bytes) {
-			super(bytes, "VICON_POSITION_ESTIMATE", MSG_ID_VICON_POSITION_ESTIMATE);
+			super(bytes, MSG_ID_VICON_POSITION_ESTIMATE, (short)88, "VICON_POSITION_ESTIMATE");
 		}
 	
-		public MSG_VICON_POSITION_ESTIMATE (short systemId, short componentId, long usec  , float x  , float y  , float z  , float roll  , float pitch  , float yaw  ) {
-			super(systemId, componentId);
+		public MSG_VICON_POSITION_ESTIMATE (short sys, short comp, long usec  , float x  , float y  , float z  , float roll  , float pitch  , float yaw  ) {
+			super(sys, comp, (short)88, "VICON_POSITION_ESTIMATE");
 			this.usec = usec;
 			this.x = x;
 			this.y = y;
@@ -19248,11 +18721,6 @@ public class MAVLink {
 			this.yaw = yaw;
 		}
 
-		@Override
-		public int getLength() {
-			return 88;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 56;
@@ -19316,6 +18784,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "VICON_POSITION_ESTIMATE";
 			
 			usec = buffer.getLong(); // uint64_t
   			x = buffer.getFloat(); // float
@@ -19327,7 +18796,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(usec); // uint64_t
   			buffer.putFloat(x); // float
@@ -19362,15 +18831,15 @@ public class MAVLink {
 		private float yaw; // Yaw angle in rad
 	
 		public MSG_VISION_POSITION_ESTIMATE () {
-			super("VISION_POSITION_ESTIMATE", MSG_ID_VISION_POSITION_ESTIMATE);
+			super(MSG_ID_VISION_POSITION_ESTIMATE, (short)88, "VISION_POSITION_ESTIMATE");
 		}
 
 		public MSG_VISION_POSITION_ESTIMATE (byte[] bytes) {
-			super(bytes, "VISION_POSITION_ESTIMATE", MSG_ID_VISION_POSITION_ESTIMATE);
+			super(bytes, MSG_ID_VISION_POSITION_ESTIMATE, (short)88, "VISION_POSITION_ESTIMATE");
 		}
 	
-		public MSG_VISION_POSITION_ESTIMATE (short systemId, short componentId, long usec  , float x  , float y  , float z  , float roll  , float pitch  , float yaw  ) {
-			super(systemId, componentId);
+		public MSG_VISION_POSITION_ESTIMATE (short sys, short comp, long usec  , float x  , float y  , float z  , float roll  , float pitch  , float yaw  ) {
+			super(sys, comp, (short)88, "VISION_POSITION_ESTIMATE");
 			this.usec = usec;
 			this.x = x;
 			this.y = y;
@@ -19380,11 +18849,6 @@ public class MAVLink {
 			this.yaw = yaw;
 		}
 
-		@Override
-		public int getLength() {
-			return 88;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 158;
@@ -19448,6 +18912,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "VISION_POSITION_ESTIMATE";
 			
 			usec = buffer.getLong(); // uint64_t
   			x = buffer.getFloat(); // float
@@ -19459,7 +18924,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(usec); // uint64_t
   			buffer.putFloat(x); // float
@@ -19491,26 +18956,21 @@ public class MAVLink {
 		private float z; // Global Z speed
 	
 		public MSG_VISION_SPEED_ESTIMATE () {
-			super("VISION_SPEED_ESTIMATE", MSG_ID_VISION_SPEED_ESTIMATE);
+			super(MSG_ID_VISION_SPEED_ESTIMATE, (short)76, "VISION_SPEED_ESTIMATE");
 		}
 
 		public MSG_VISION_SPEED_ESTIMATE (byte[] bytes) {
-			super(bytes, "VISION_SPEED_ESTIMATE", MSG_ID_VISION_SPEED_ESTIMATE);
+			super(bytes, MSG_ID_VISION_SPEED_ESTIMATE, (short)76, "VISION_SPEED_ESTIMATE");
 		}
 	
-		public MSG_VISION_SPEED_ESTIMATE (short systemId, short componentId, long usec  , float x  , float y  , float z  ) {
-			super(systemId, componentId);
+		public MSG_VISION_SPEED_ESTIMATE (short sys, short comp, long usec  , float x  , float y  , float z  ) {
+			super(sys, comp, (short)76, "VISION_SPEED_ESTIMATE");
 			this.usec = usec;
 			this.x = x;
 			this.y = y;
 			this.z = z;
 		}
 
-		@Override
-		public int getLength() {
-			return 76;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 208;
@@ -19550,6 +19010,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "VISION_SPEED_ESTIMATE";
 			
 			usec = buffer.getLong(); // uint64_t
   			x = buffer.getFloat(); // float
@@ -19558,7 +19019,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putLong(usec); // uint64_t
   			buffer.putFloat(x); // float
@@ -19584,26 +19045,21 @@ public class MAVLink {
 		private int command_id; // Command ID
 	
 		public MSG_WATCHDOG_COMMAND () {
-			super("WATCHDOG_COMMAND", MSG_ID_WATCHDOG_COMMAND);
+			super(MSG_ID_WATCHDOG_COMMAND, (short)6, "WATCHDOG_COMMAND");
 		}
 
 		public MSG_WATCHDOG_COMMAND (byte[] bytes) {
-			super(bytes, "WATCHDOG_COMMAND", MSG_ID_WATCHDOG_COMMAND);
+			super(bytes, MSG_ID_WATCHDOG_COMMAND, (short)6, "WATCHDOG_COMMAND");
 		}
 	
-		public MSG_WATCHDOG_COMMAND (short systemId, short componentId, int watchdog_id  , int process_id  , int target_system_id  , int command_id  ) {
-			super(systemId, componentId);
+		public MSG_WATCHDOG_COMMAND (short sys, short comp, int watchdog_id  , int process_id  , int target_system_id  , int command_id  ) {
+			super(sys, comp, (short)6, "WATCHDOG_COMMAND");
 			this.watchdog_id = watchdog_id;
 			this.process_id = process_id;
 			this.target_system_id = target_system_id;
 			this.command_id = command_id;
 		}
 
-		@Override
-		public int getLength() {
-			return 6;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 162;
@@ -19643,6 +19099,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "WATCHDOG_COMMAND";
 			
 			watchdog_id = buffer.getShort() & 0xffff; // uint16_t
   			process_id = buffer.getShort() & 0xffff; // uint16_t
@@ -19651,7 +19108,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(watchdog_id & 0xffff)); // uint16_t
   			buffer.putShort((short)(process_id & 0xffff)); // uint16_t
@@ -19675,24 +19132,19 @@ public class MAVLink {
 		private int process_count; // Number of processes
 	
 		public MSG_WATCHDOG_HEARTBEAT () {
-			super("WATCHDOG_HEARTBEAT", MSG_ID_WATCHDOG_HEARTBEAT);
+			super(MSG_ID_WATCHDOG_HEARTBEAT, (short)4, "WATCHDOG_HEARTBEAT");
 		}
 
 		public MSG_WATCHDOG_HEARTBEAT (byte[] bytes) {
-			super(bytes, "WATCHDOG_HEARTBEAT", MSG_ID_WATCHDOG_HEARTBEAT);
+			super(bytes, MSG_ID_WATCHDOG_HEARTBEAT, (short)4, "WATCHDOG_HEARTBEAT");
 		}
 	
-		public MSG_WATCHDOG_HEARTBEAT (short systemId, short componentId, int watchdog_id  , int process_count  ) {
-			super(systemId, componentId);
+		public MSG_WATCHDOG_HEARTBEAT (short sys, short comp, int watchdog_id  , int process_count  ) {
+			super(sys, comp, (short)4, "WATCHDOG_HEARTBEAT");
 			this.watchdog_id = watchdog_id;
 			this.process_count = process_count;
 		}
 
-		@Override
-		public int getLength() {
-			return 4;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 153;
@@ -19716,13 +19168,14 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "WATCHDOG_HEARTBEAT";
 			
 			watchdog_id = buffer.getShort() & 0xffff; // uint16_t
   			process_count = buffer.getShort() & 0xffff; // uint16_t
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putShort((short)(watchdog_id & 0xffff)); // uint16_t
   			buffer.putShort((short)(process_count & 0xffff)); // uint16_t
@@ -19745,15 +19198,15 @@ public class MAVLink {
 		private char[] arguments = new char[147]; // Process arguments
 	
 		public MSG_WATCHDOG_PROCESS_INFO () {
-			super("WATCHDOG_PROCESS_INFO", MSG_ID_WATCHDOG_PROCESS_INFO);
+			super(MSG_ID_WATCHDOG_PROCESS_INFO, (short)10, "WATCHDOG_PROCESS_INFO");
 		}
 
 		public MSG_WATCHDOG_PROCESS_INFO (byte[] bytes) {
-			super(bytes, "WATCHDOG_PROCESS_INFO", MSG_ID_WATCHDOG_PROCESS_INFO);
+			super(bytes, MSG_ID_WATCHDOG_PROCESS_INFO, (short)10, "WATCHDOG_PROCESS_INFO");
 		}
 	
-		public MSG_WATCHDOG_PROCESS_INFO (short systemId, short componentId, int timeout  , int watchdog_id  , int process_id  , char name [] , char arguments [] ) {
-			super(systemId, componentId);
+		public MSG_WATCHDOG_PROCESS_INFO (short sys, short comp, int timeout  , int watchdog_id  , int process_id  , char name [] , char arguments [] ) {
+			super(sys, comp, (short)10, "WATCHDOG_PROCESS_INFO");
 			this.timeout = timeout;
 			this.watchdog_id = watchdog_id;
 			this.process_id = process_id;
@@ -19761,11 +19214,6 @@ public class MAVLink {
 			this.arguments = arguments;
 		}
 
-		@Override
-		public int getLength() {
-			return 10;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 113;
@@ -19813,6 +19261,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "WATCHDOG_PROCESS_INFO";
 			
 			timeout = buffer.getInt(); // int32_t
   			watchdog_id = buffer.getShort() & 0xffff; // uint16_t
@@ -19828,7 +19277,7 @@ public class MAVLink {
   			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(timeout)); // int32_t
   			buffer.putShort((short)(watchdog_id & 0xffff)); // uint16_t
@@ -19864,15 +19313,15 @@ public class MAVLink {
 		private int muted; // Is muted
 	
 		public MSG_WATCHDOG_PROCESS_STATUS () {
-			super("WATCHDOG_PROCESS_STATUS", MSG_ID_WATCHDOG_PROCESS_STATUS);
+			super(MSG_ID_WATCHDOG_PROCESS_STATUS, (short)12, "WATCHDOG_PROCESS_STATUS");
 		}
 
 		public MSG_WATCHDOG_PROCESS_STATUS (byte[] bytes) {
-			super(bytes, "WATCHDOG_PROCESS_STATUS", MSG_ID_WATCHDOG_PROCESS_STATUS);
+			super(bytes, MSG_ID_WATCHDOG_PROCESS_STATUS, (short)12, "WATCHDOG_PROCESS_STATUS");
 		}
 	
-		public MSG_WATCHDOG_PROCESS_STATUS (short systemId, short componentId, int pid  , int watchdog_id  , int process_id  , int crashes  , int state  , int muted  ) {
-			super(systemId, componentId);
+		public MSG_WATCHDOG_PROCESS_STATUS (short sys, short comp, int pid  , int watchdog_id  , int process_id  , int crashes  , int state  , int muted  ) {
+			super(sys, comp, (short)12, "WATCHDOG_PROCESS_STATUS");
 			this.pid = pid;
 			this.watchdog_id = watchdog_id;
 			this.process_id = process_id;
@@ -19881,11 +19330,6 @@ public class MAVLink {
 			this.muted = muted;
 		}
 
-		@Override
-		public int getLength() {
-			return 12;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return 29;
@@ -19941,6 +19385,7 @@ public class MAVLink {
 		
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "WATCHDOG_PROCESS_STATUS";
 			
 			pid = buffer.getInt(); // int32_t
   			watchdog_id = buffer.getShort() & 0xffff; // uint16_t
@@ -19951,7 +19396,7 @@ public class MAVLink {
    			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 			buffer.putInt((int)(pid)); // int32_t
   			buffer.putShort((short)(watchdog_id & 0xffff)); // uint16_t

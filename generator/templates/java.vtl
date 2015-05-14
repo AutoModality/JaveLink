@@ -21,7 +21,7 @@ int##
 $string.substring(0, 1).toUpperCase()$string.substring(1, $string.length())##
 #end
 ##
-package eu.sathra.mavlink;
+package com.automodality.message;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -50,54 +50,49 @@ public class MAVLink {
 	public static final short MSG_ID_$message.name = $message.id;
 #end
 
-	public static abstract class Message {
+	public static abstract class Message extends AMMAVLink {
 		
-		protected short messageId;
-		protected String messageName;
-		protected short systemId;
-		protected short componentId;
-		protected short sequenceIndex;
-	
+		protected String msgName;
+		
 		public static Message decodeMessage(byte[] bytes) {
-			short messageId = (short)(bytes[5] & 0xFF);
+			short msg = (short)(bytes[5] & 0xFF);
 		
-			switch(messageId) {
+			switch(msg) {
 #foreach($message in $message_list)
 					case MSG_ID_$message.name: 
 						return new MSG_$message.name ().decode(bytes);
 #end
-					default: throw new IllegalArgumentException("Message with id=" + messageId + " is not supported.");
+					default: throw new IllegalArgumentException("Message with id=" + msg + " is not supported.");
 			}
 		}
 	
-		protected Message(String messageName, short messageId)
+		protected Message(short msg, short lngth, String msgName)
 		{
-			this.messageName = messageName;
-			this.messageId = messageId;			
+			this.msg = msg;			
+			this.lngth = lngth;
+			this.msgName = msgName;
 		}
 		
-		protected Message(byte[] bytes, String messageName, short messageId) {
-			this.messageName = messageName;
-			this.messageId = messageId;
+		protected Message(byte[] bytes, short msg, short lngth, String msgName) {
+			this.msg = msg;
+			this.lngth = lngth;
+			this.msgName = msgName;
 			decode(bytes);
 		}
 		
-		protected Message(short systemId, short componentId) {
-			this.systemId = systemId;
-			this.componentId = componentId;
+		protected Message(short sys, short comp, short lngth, String msgName) {
+			this.sys = sys;
+			this.lngth = lngth;
+			this.msgName = msgName;
+			this.comp = Component.getNameValueOf(comp);
 		}
 	
-		public short getMessageId() {
-			return messageId;
-		}
-	
-		public String getMessageName() {
-			return messageName;
-		}
-	
-		public abstract int getLength();
-		
 		public abstract int getCRCExtra();
+		
+		public String getMsgName()
+		{
+			return msgName;
+		}
 		
 		protected abstract ByteBuffer decodePayload(ByteBuffer buffer);
 		
@@ -112,15 +107,17 @@ public class MAVLink {
 					PACKET_START_SIGN + " got: " + startSign);
 			}
 			
-			buffer.get(); // payload length, ignore
-			this.sequenceIndex = (short)(buffer.get() & 0xFF);
-			this.systemId = (short)(buffer.get() & 0xFF);
-			this.componentId = (short)(buffer.get() & 0xFF);
+			this.lngth = (short)(buffer.get() & 0xFF);
+			// TODO: validate against known length for given msgID
+			
+			this.sqnc = (short)(buffer.get() & 0xFF);
+			this.sys = (short)(buffer.get() & 0xFF);
+			this.comp = Component.getNameValueOf(buffer.get() & 0xFF);
 			
 			short tmp = (short)(buffer.get() & 0xFF); // messageID not used
-			if(tmp != getMessageId()) {
+			if(tmp != getMsg()) {
 				throw new IllegalArgumentException("Invalid message id. Expected: " + 
-					getMessageId() + " got: " + messageId);
+					getMsg() + " got: " + msg);
 			 }
 			
 			decodePayload(buffer);
@@ -129,29 +126,29 @@ public class MAVLink {
 			return this;	
 		}
 
-		protected abstract ByteBuffer encodePayload(ByteBuffer buffer);
+		public abstract ByteBuffer encodePayload(ByteBuffer buffer);
 		
 		public byte[] encode() {
-			ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH+getLength());
+			ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH+getLngth());
 			buffer.order(ByteOrder.LITTLE_ENDIAN);
 			
-			this.setSequenceIndex((short)0x4E); // TMP
+			this.setSqnc((short)0x4E); // TMP
 			
 			buffer.put((byte)(PACKET_START_SIGN & 0xFF));
-			buffer.put((byte)(getLength() & 0xFF));
-			buffer.put((byte)(getSequenceIndex() & 0xFF));//sequence
-			buffer.put((byte)(getSystemId() & 0xFF));
-			buffer.put((byte)(getComponentId() & 0xFF));
-			buffer.put((byte)(getMessageId() & 0xFF));
+			buffer.put((byte)(getLngth() & 0xFF));
+			buffer.put((byte)(getSqnc() & 0xFF));//sequence
+			buffer.put((byte)(getSys() & 0xFF));
+			buffer.put((byte)(Component.getIDValueOf(getComp()) & 0xFF));
+			buffer.put((byte)(getMsg() & 0xFF));
 			encodePayload(buffer);
 			
 			// Calculate CRC
 			buffer.put((byte)(getCRCExtra() & 0xFF));
 			
-			byte[] bytes = new byte[HEADER_LENGTH+getLength()];
+			byte[] bytes = new byte[HEADER_LENGTH+getLngth()];
 			buffer.rewind();
 			buffer.get(bytes);
-
+			
 			int crc = getCRC(bytes, 1, bytes.length-1);
 			bytes[bytes.length-2] = (byte)((crc>>8)&0xFF);
 			bytes[bytes.length-1] = (byte)((crc)&0xFF);
@@ -159,46 +156,34 @@ public class MAVLink {
 			return bytes;
 		}
 		
-		public static byte[] encode(short length, short sequenceIndex, short systemId, short componentId, short messageId, byte[] payload, int crc) {
-			ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH+length);
+		public static byte[] encode(short lngth, short sqnc, short sys, short comp, short msg, byte[] payload, int crcExtra) {
+			ByteBuffer buffer = ByteBuffer.allocate(HEADER_LENGTH+lngth);
 			buffer.order(ByteOrder.LITTLE_ENDIAN);
 			
 			buffer.put((byte)(PACKET_START_SIGN & 0xFF));
-			buffer.put((byte)(length & 0xFF));
-			buffer.put((byte)(sequenceIndex & 0xFF));//sequence
-			buffer.put((byte)(systemId & 0xFF));
-			buffer.put((byte)(componentId & 0xFF));
-			buffer.put((byte)(messageId & 0xFF));
+			buffer.put((byte)(lngth & 0xFF));
+			buffer.put((byte)(sqnc & 0xFF));//sequence
+			buffer.put((byte)(sys & 0xFF));
+			buffer.put((byte)(comp & 0xFF));
+			buffer.put((byte)(msg & 0xFF));
 			for(byte b: payload)
 			{
 				buffer.put(b);
 			}	
-			byte[] bytes = new byte[HEADER_LENGTH+length];
+			
+			// Calculate CRC
+			buffer.put((byte)(crcExtra & 0xFF));
+			byte[] bytes = new byte[HEADER_LENGTH+lngth];
 			buffer.rewind();
 			buffer.get(bytes);
+			int crc = getCRC(bytes, 1, bytes.length-1);
 			bytes[bytes.length-2] = (byte)((crc>>8)&0xFF);
 			bytes[bytes.length-1] = (byte)((crc)&0xFF);
 
 			return bytes;
 		}
 
-		public void setSequenceIndex(short index) {
-			sequenceIndex = index;
-		}
-		
-		public short getSequenceIndex() {
-			return sequenceIndex;
-		}
-		
-		public short getSystemId() {
-			return systemId;
-		}
-		
-		public short getComponentId() {
-			return componentId;
-		}
-		
-		private int getCRC(byte[] bytes, int offset, int length) {
+		private static int getCRC(byte[] bytes, int offset, int length) {
 			int crc = 0xffff;
 			
 			for(int c=offset; c<length; ++c) {
@@ -227,25 +212,20 @@ public class MAVLink {
 #end
 	
 		public MSG_$message.name () {
-			super("$message.name", MSG_ID_$message.name);
+			super(MSG_ID_$message.name, (short)$message.length, "$message.name");
 		}
 
 		public MSG_$message.name (byte[] bytes) {
-			super(bytes, "$message.name", MSG_ID_$message.name);
+			super(bytes, MSG_ID_$message.name, (short)$message.length, "$message.name");
 		}
 	
-		public MSG_$message.name (short systemId, short componentId#foreach( $field in $message.fields ), #getJavaType($field.type) $field.name #if($field.array)[]#end #end) {
-			super(systemId, componentId);
+		public MSG_$message.name (short sys, short comp#foreach( $field in $message.fields ), #getJavaType($field.type) $field.name #if($field.array)[]#end #end) {
+			super(sys, comp, (short)$message.length, "$message.name");
 #foreach( $field in $message.fields )
 			this.$field.name = $field.name;
 #end		
 		}
 
-		@Override
-		public int getLength() {
-			return $message.length;
-		}		
-	
 		@Override
 		public int getCRCExtra() {
 			return $message.CRCExtra;
@@ -263,6 +243,7 @@ public class MAVLink {
 #end
 			
 		protected ByteBuffer decodePayload(ByteBuffer buffer) {
+			msgName = "$message.name";
 			
 #foreach($field in $message.fields)
 #if($field.array)
@@ -301,7 +282,7 @@ public class MAVLink {
 			return buffer;
 		}
 			
-		protected ByteBuffer encodePayload(ByteBuffer buffer) {
+		public ByteBuffer encodePayload(ByteBuffer buffer) {
 			
 #foreach($field in $message.fields)
 #if($field.array)
