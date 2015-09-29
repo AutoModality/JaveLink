@@ -5,6 +5,7 @@ import java.nio.ByteOrder;
 
 public class MAVLink {
 	
+	@SuppressWarnings("unused")
 	private static final int PROTOCOL_VERSION = 3;
 	private static final short PACKET_START_SIGN = 0xFE; //v1.0: 0xFE; v0.9: 0x55
 	private static final int HEADER_LENGTH = 8; // Overhead size
@@ -622,6 +623,7 @@ public class MAVLink {
 
 	public static abstract class Message extends AMMAVLink {
 		
+		private static final long serialVersionUID = 1L;
 		protected String msgName;
 		
 		public static Message decodeMessage(byte[] bytes) {
@@ -1040,6 +1042,7 @@ public class MAVLink {
 	 */
 	public static class MSG_ACTUATOR_CONTROL_TARGET extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (micros since boot or Unix epoch)
 		private float[] controls = new float[8]; // Actuator controls. Normed to -1..+1 where 0 is neutral position. Throttle for single rotation direction motors is 0..1, negative range for reverse direction. Standard mapping for attitude controls (group 0): (index 0-7): roll, pitch, yaw, throttle, flaps, spoilers, airbrakes, landing gear. Load a pass-through mixer to repurpose them as generic outputs.
 		private int group_mlx; // Actuator group. The "_mlx" indicates this is a multi-instance message and a MAVLink parser should use this field to difference between instances.
@@ -1125,6 +1128,7 @@ public class MAVLink {
 	 */
 	public static class MSG_ATTITUDE extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private float roll; // Roll angle (rad, -pi..+pi)
 		private float pitch; // Pitch angle (rad, -pi..+pi)
@@ -1253,6 +1257,7 @@ public class MAVLink {
 	}
 	public static class MSG_ATTITUDE_CONTROL extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float roll; // roll
 		private float pitch; // pitch
 		private float yaw; // yaw
@@ -1410,6 +1415,7 @@ public class MAVLink {
 	 */
 	public static class MSG_ATTITUDE_QUATERNION extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private float q1; // Quaternion component 1, w (1 in null-rotation)
 		private float q2; // Quaternion component 2, x (0 in null-rotation)
@@ -1554,6 +1560,7 @@ public class MAVLink {
 	 */
 	public static class MSG_ATTITUDE_QUATERNION_COV extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private float[] q = new float[4]; // Quaternion components, w, x, y, z (1 0 0 0 is the null-rotation)
 		private float rollspeed; // Roll angular speed (rad/s)
@@ -1684,6 +1691,7 @@ public class MAVLink {
 	 */
 	public static class MSG_ATTITUDE_TARGET extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp in milliseconds since system boot
 		private float[] q = new float[4]; // Attitude quaternion (w, x, y, z order, zero-rotation is 1, 0, 0, 0)
 		private float body_roll_rate; // Body roll rate in radians per second
@@ -1821,6 +1829,7 @@ public class MAVLink {
 	 */
 	public static class MSG_ATT_POS_MOCAP extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (micros since boot or Unix epoch)
 		private float[] q = new float[4]; // Attitude quaternion (w, x, y, z order, zero-rotation is 1, 0, 0, 0)
 		private float x; // X position in meters (NED)
@@ -1932,6 +1941,7 @@ public class MAVLink {
 	 */
 	public static class MSG_AUTH_KEY extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private char[] key = new char[32]; // key
 	
 		public MSG_AUTH_KEY () {
@@ -1991,6 +2001,7 @@ public class MAVLink {
 	 */
 	public static class MSG_AUTOPILOT_VERSION extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long capabilities; // bitmask of capabilities (see MAV_PROTOCOL_CAPABILITY enum)
 		private long uid; // UID if provided by hardware
 		private long flight_sw_version; // Firmware version number
@@ -2192,6 +2203,7 @@ public class MAVLink {
 	 */
 	public static class MSG_BATTERY_STATUS extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int current_consumed; // Consumed charge, in milliampere hours (1 = 1 mAh), -1: autopilot does not provide mAh consumption estimate
 		private int energy_consumed; // Consumed energy, in 100*Joules (intergrated U*I*dt)  (1 = 100 Joule), -1: autopilot does not provide energy consumption estimate
 		private int temperature; // Temperature of the battery in centi-degrees celsius. INT16_MAX for unknown temperature.
@@ -2352,6 +2364,7 @@ public class MAVLink {
 	}
 	public static class MSG_BRIEF_FEATURE extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float x; // x position in m
 		private float y; // y position in m
 		private float z; // z position in m
@@ -2502,6 +2515,7 @@ public class MAVLink {
 	 */
 	public static class MSG_CAMERA_TRIGGER extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp for the image frame in microseconds
 		private long seq; // Image frame sequence
 	
@@ -2568,6 +2582,7 @@ public class MAVLink {
 	 */
 	public static class MSG_CHANGE_OPERATOR_CONTROL extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int target_system; // System the GCS requests control for
 		private int control_request; // 0: request control of this MAV, 1: Release control of this MAV
 		private int version; // 0: key as plaintext, 1-255: future, different hashing/encryption variants. The GCS should in general use the safest mode possible initially and then gradually move down the encryption level if it gets a NACK message indicating an encryption mismatch.
@@ -2666,6 +2681,7 @@ public class MAVLink {
 	 */
 	public static class MSG_CHANGE_OPERATOR_CONTROL_ACK extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int gcs_system_id; // ID of the GCS this message 
 		private int control_request; // 0: request control of this MAV, 1: Release control of this MAV
 		private int ack; // 0: ACK, 1: NACK: Wrong passkey, 2: NACK: Unsupported passkey encryption method, 3: NACK: Already under control
@@ -2745,6 +2761,7 @@ public class MAVLink {
 	 */
 	public static class MSG_COMMAND_ACK extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int command; // Command ID, as defined by MAV_CMD enum.
 		private int result; // See MAV_RESULT enum
 	
@@ -2811,6 +2828,7 @@ public class MAVLink {
 	 */
 	public static class MSG_COMMAND_INT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float param1; // PARAM1, see MAV_CMD enum
 		private float param2; // PARAM2, see MAV_CMD enum
 		private float param3; // PARAM3, see MAV_CMD enum
@@ -3020,6 +3038,7 @@ public class MAVLink {
 	 */
 	public static class MSG_COMMAND_LONG extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float param1; // Parameter 1, as defined by MAV_CMD enum.
 		private float param2; // Parameter 2, as defined by MAV_CMD enum.
 		private float param3; // Parameter 3, as defined by MAV_CMD enum.
@@ -3200,6 +3219,7 @@ public class MAVLink {
 	}
 	public static class MSG_DATA_STREAM extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int message_rate; // The requested interval between two messages of this type
 		private int stream_id; // The ID of the requested data stream
 		private int on_off; // 1 stream is enabled, 0 stream is stopped.
@@ -3276,6 +3296,7 @@ public class MAVLink {
 	}
 	public static class MSG_DATA_TRANSMISSION_HANDSHAKE extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long size; // total data size in bytes (set on ACK only)
 		private int width; // Width of a matrix or image
 		private int height; // Height of a matrix or image
@@ -3407,6 +3428,7 @@ public class MAVLink {
 	 */
 	public static class MSG_DEBUG extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private float value; // DEBUG value
 		private int ind; // index of debug variable
@@ -3483,6 +3505,7 @@ public class MAVLink {
 	}
 	public static class MSG_DEBUG_VECT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp
 		private float x; // x
 		private float y; // y
@@ -3591,6 +3614,7 @@ public class MAVLink {
 	}
 	public static class MSG_DETECTION_STATS extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long detections; // Number of detections
 		private long cluster_iters; // Number of cluster iterations
 		private float best_score; // Best score
@@ -3784,6 +3808,7 @@ public class MAVLink {
 	}
 	public static class MSG_DISTANCE_SENSOR extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Time since system boot
 		private int min_distance; // Minimum distance the sensor can measure in centimeters
 		private int max_distance; // Maximum distance the sensor can measure in centimeters
@@ -3925,6 +3950,7 @@ public class MAVLink {
 	}
 	public static class MSG_ENCAPSULATED_DATA extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int seqnr; // sequence number (starting with 0 on every transmission)
 		private int[] data = new int[253]; // image data bytes
 	
@@ -3997,6 +4023,7 @@ public class MAVLink {
 	 */
 	public static class MSG_FILE_TRANSFER_PROTOCOL extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int target_network; // Network ID (0 for broadcast)
 		private int target_system; // System ID (0 for broadcast)
 		private int target_component; // Component ID (0 for broadcast)
@@ -4096,6 +4123,7 @@ public class MAVLink {
 	 */
 	public static class MSG_GLOBAL_POSITION_INT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private int lat; // Latitude, expressed as * 1E7
 		private int lon; // Longitude, expressed as * 1E7
@@ -4253,6 +4281,7 @@ public class MAVLink {
 	 */
 	public static class MSG_GLOBAL_POSITION_INT_COV extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_utc; // Timestamp (microseconds since UNIX epoch) in UTC. 0 for unknown. Commonly filled by the precision time source of a GPS receiver.
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private int lat; // Latitude, expressed as degrees * 1E7
@@ -4439,6 +4468,7 @@ public class MAVLink {
 	}
 	public static class MSG_GLOBAL_VISION_POSITION_ESTIMATE extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long usec; // Timestamp (microseconds, synced to UNIX time or since system boot)
 		private float x; // Global X position
 		private float y; // Global Y position
@@ -4570,6 +4600,7 @@ public class MAVLink {
 	 */
 	public static class MSG_GPS2_RAW extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (microseconds since UNIX epoch or microseconds since system boot)
 		private int lat; // Latitude (WGS84), in degrees * 1E7
 		private int lon; // Longitude (WGS84), in degrees * 1E7
@@ -4766,6 +4797,7 @@ public class MAVLink {
 	 */
 	public static class MSG_GPS2_RTK extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_last_baseline_ms; // Time since boot of last baseline message received in ms.
 		private long tow; // GPS Time of Week of last baseline
 		private int baseline_a_mm; // Current baseline in ECEF x or NED north component in mm.
@@ -4975,6 +5007,7 @@ public class MAVLink {
 	 */
 	public static class MSG_GPS_GLOBAL_ORIGIN extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int latitude; // Latitude (WGS84), in degrees * 1E7
 		private int longitude; // Longitude (WGS84), in degrees * 1E7
 		private int altitude; // Altitude (AMSL), in meters * 1000 (positive for up)
@@ -5054,6 +5087,7 @@ public class MAVLink {
 	 */
 	public static class MSG_GPS_INJECT_DATA extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int target_system; // System ID
 		private int target_component; // Component ID
 		private int len; // data length
@@ -5153,6 +5187,7 @@ public class MAVLink {
 	 */
 	public static class MSG_GPS_RAW_INT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (microseconds since UNIX epoch or microseconds since system boot)
 		private int lat; // Latitude (WGS84), in degrees * 1E7
 		private int lon; // Longitude (WGS84), in degrees * 1E7
@@ -5323,6 +5358,7 @@ public class MAVLink {
 	 */
 	public static class MSG_GPS_RTK extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_last_baseline_ms; // Time since boot of last baseline message received in ms.
 		private long tow; // GPS Time of Week of last baseline
 		private int baseline_a_mm; // Current baseline in ECEF x or NED north component in mm.
@@ -5532,6 +5568,7 @@ public class MAVLink {
 	 */
 	public static class MSG_GPS_STATUS extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int satellites_visible; // Number of satellites visible
 		private int[] satellite_prn = new int[20]; // Global satellite ID
 		private int[] satellite_used = new int[20]; // 0: Satellite not used, 1: used for localization
@@ -5680,6 +5717,7 @@ public class MAVLink {
 	 */
 	public static class MSG_HEARTBEAT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long custom_mode; // A bitfield for use for autopilot-specific flags.
 		private int type; // Type of the MAV (quadrotor, helicopter, etc., up to 15 types, defined in MAV_TYPE ENUM)
 		private int autopilot; // Autopilot type / class. defined in MAV_AUTOPILOT ENUM
@@ -5798,6 +5836,7 @@ public class MAVLink {
 	 */
 	public static class MSG_HIGHRES_IMU extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (microseconds, synced to UNIX time or since system boot)
 		private float xacc; // X acceleration (m/s^2)
 		private float yacc; // Y acceleration (m/s^2)
@@ -6033,6 +6072,7 @@ public class MAVLink {
 	 */
 	public static class MSG_HIL_CONTROLS extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (microseconds since UNIX epoch or microseconds since system boot)
 		private float roll_ailerons; // Control output -1 .. 1
 		private float pitch_elevator; // Control output -1 .. 1
@@ -6217,6 +6257,7 @@ public class MAVLink {
 	 */
 	public static class MSG_HIL_GPS extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (microseconds since UNIX epoch or microseconds since system boot)
 		private int lat; // Latitude (WGS84), in degrees * 1E7
 		private int lon; // Longitude (WGS84), in degrees * 1E7
@@ -6426,6 +6467,7 @@ public class MAVLink {
 	 */
 	public static class MSG_HIL_OPTICAL_FLOW extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (microseconds, synced to UNIX time or since system boot)
 		private long integration_time_us; // Integration time in microseconds. Divide integrated_x and integrated_y by the integration time to obtain average flow. The integration time also indicates the.
 		private float integrated_x; // Flow in radians around X axis (Sensor RH rotation about the X axis induces a positive flow. Sensor linear motion along the positive Y axis induces a negative flow.)
@@ -6622,6 +6664,7 @@ public class MAVLink {
 	 */
 	public static class MSG_HIL_RC_INPUTS_RAW extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (microseconds since UNIX epoch or microseconds since system boot)
 		private int chan1_raw; // RC channel 1 value, in microseconds
 		private int chan2_raw; // RC channel 2 value, in microseconds
@@ -6844,6 +6887,7 @@ public class MAVLink {
 	 */
 	public static class MSG_HIL_SENSOR extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (microseconds, synced to UNIX time or since system boot)
 		private float xacc; // X acceleration (m/s^2)
 		private float yacc; // Y acceleration (m/s^2)
@@ -7079,6 +7123,7 @@ public class MAVLink {
 	 */
 	public static class MSG_HIL_STATE extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (microseconds since UNIX epoch or microseconds since system boot)
 		private float roll; // Roll angle (rad)
 		private float pitch; // Pitch angle (rad)
@@ -7327,6 +7372,7 @@ public class MAVLink {
 	 */
 	public static class MSG_HIL_STATE_QUATERNION extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (microseconds since UNIX epoch or microseconds since system boot)
 		private float[] attitude_quaternion = new float[4]; // Vehicle attitude expressed as normalized quaternion in w, x, y, z order (with 1 0 0 0 being the null-rotation)
 		private float rollspeed; // Body frame roll / phi angular speed (rad/s)
@@ -7578,6 +7624,7 @@ public class MAVLink {
 	}
 	public static class MSG_IMAGE_AVAILABLE extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long cam_id; // Camera id
 		private long timestamp; // Timestamp
 		private long valid_until; // Until which timestamp this buffer will stay valid
@@ -7914,6 +7961,7 @@ public class MAVLink {
 	}
 	public static class MSG_IMAGE_TRIGGERED extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long timestamp; // Timestamp
 		private long seq; // IMU seq
 		private float roll; // Roll angle in rad
@@ -8107,6 +8155,7 @@ public class MAVLink {
 	}
 	public static class MSG_IMAGE_TRIGGER_CONTROL extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int enable; // 0 to disable, 1 to enable
 	
 		public MSG_IMAGE_TRIGGER_CONTROL () {
@@ -8160,6 +8209,7 @@ public class MAVLink {
 	 */
 	public static class MSG_LOCAL_POSITION_NED extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private float x; // X Position
 		private float y; // Y Position
@@ -8291,6 +8341,7 @@ public class MAVLink {
 	 */
 	public static class MSG_LOCAL_POSITION_NED_COV extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_utc; // Timestamp (microseconds since UNIX epoch) in UTC. 0 for unknown. Commonly filled by the precision time source of a GPS receiver.
 		private long time_boot_ms; // Timestamp (milliseconds since system boot). 0 for system without monotonic timestamp
 		private float x; // X Position
@@ -8506,6 +8557,7 @@ public class MAVLink {
 	 */
 	public static class MSG_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private float x; // X Position
 		private float y; // Y Position
@@ -8637,6 +8689,7 @@ public class MAVLink {
 	 */
 	public static class MSG_LOG_DATA extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long ofs; // Offset into the log
 		private int id; // Log id (from LOG_ENTRY reply)
 		private int count; // Number of bytes (zero for end of log)
@@ -8735,6 +8788,7 @@ public class MAVLink {
 	 */
 	public static class MSG_LOG_ENTRY extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_utc; // UTC timestamp of log in seconds since 1970, or 0 if not available
 		private long size; // Size of the log (may be approximate) in bytes
 		private int id; // Log id
@@ -8840,6 +8894,7 @@ public class MAVLink {
 	 */
 	public static class MSG_LOG_ERASE extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
@@ -8906,6 +8961,7 @@ public class MAVLink {
 	 */
 	public static class MSG_LOG_REQUEST_DATA extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long ofs; // Offset into the log
 		private long count; // Number of bytes
 		private int id; // Log id (from LOG_ENTRY reply)
@@ -9011,6 +9067,7 @@ public class MAVLink {
 	 */
 	public static class MSG_LOG_REQUEST_END extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
@@ -9077,6 +9134,7 @@ public class MAVLink {
 	 */
 	public static class MSG_LOG_REQUEST_LIST extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int start; // First log id (0 for first available)
 		private int end; // Last log id (0xffff for last available)
 		private int target_system; // System ID
@@ -9169,6 +9227,7 @@ public class MAVLink {
 	 */
 	public static class MSG_MANUAL_CONTROL extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int x; // X-axis, normalized to the range [-1000,1000]. A value of INT16_MAX indicates that this axis is invalid. Generally corresponds to forward(1000)-backward(-1000) movement on a joystick and the pitch of a vehicle.
 		private int y; // Y-axis, normalized to the range [-1000,1000]. A value of INT16_MAX indicates that this axis is invalid. Generally corresponds to left(-1000)-right(1000) movement on a joystick and the roll of a vehicle.
 		private int z; // Z-axis, normalized to the range [-1000,1000]. A value of INT16_MAX indicates that this axis is invalid. Generally corresponds to a separate slider movement with maximum being 1000 and minimum being -1000 on a joystick and the thrust of a vehicle.
@@ -9287,6 +9346,7 @@ public class MAVLink {
 	 */
 	public static class MSG_MANUAL_SETPOINT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp in milliseconds since system boot
 		private float roll; // Desired roll rate in radians per second
 		private float pitch; // Desired pitch rate in radians per second
@@ -9415,6 +9475,7 @@ public class MAVLink {
 	}
 	public static class MSG_MARKER extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float x; // x position
 		private float y; // y position
 		private float z; // z position
@@ -9546,6 +9607,7 @@ public class MAVLink {
 	 */
 	public static class MSG_MEMORY_VECT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int address; // Starting address of the debug variables
 		private int ver; // Version code of the type variable. 0=unknown, type ignored and assumed int16_t. 1=as below
 		private int type; // Type code of the memory variables. for ver = 1: 0=16 x int16_t, 1=16 x uint16_t, 2=16 x Q15, 3=16 x 1Q14
@@ -9644,6 +9706,7 @@ public class MAVLink {
 	 */
 	public static class MSG_MISSION_ACK extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int target_system; // System ID
 		private int target_component; // Component ID
 		private int type; // See MAV_MISSION_RESULT enum
@@ -9723,6 +9786,7 @@ public class MAVLink {
 	 */
 	public static class MSG_MISSION_CLEAR_ALL extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
@@ -9789,6 +9853,7 @@ public class MAVLink {
 	 */
 	public static class MSG_MISSION_COUNT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int count; // Number of mission items in the sequence
 		private int target_system; // System ID
 		private int target_component; // Component ID
@@ -9868,6 +9933,7 @@ public class MAVLink {
 	 */
 	public static class MSG_MISSION_CURRENT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int seq; // Sequence
 	
 		public MSG_MISSION_CURRENT () {
@@ -9922,6 +9988,7 @@ public class MAVLink {
 	 */
 	public static class MSG_MISSION_ITEM extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float param1; // PARAM1, see MAV_CMD enum
 		private float param2; // PARAM2, see MAV_CMD enum
 		private float param3; // PARAM3, see MAV_CMD enum
@@ -10145,6 +10212,7 @@ public class MAVLink {
 	 */
 	public static class MSG_MISSION_ITEM_INT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float param1; // PARAM1, see MAV_CMD enum
 		private float param2; // PARAM2, see MAV_CMD enum
 		private float param3; // PARAM3, see MAV_CMD enum
@@ -10367,6 +10435,7 @@ public class MAVLink {
 	 */
 	public static class MSG_MISSION_ITEM_REACHED extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int seq; // Sequence
 	
 		public MSG_MISSION_ITEM_REACHED () {
@@ -10420,6 +10489,7 @@ public class MAVLink {
 	 */
 	public static class MSG_MISSION_REQUEST extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int seq; // Sequence
 		private int target_system; // System ID
 		private int target_component; // Component ID
@@ -10499,6 +10569,7 @@ public class MAVLink {
 	 */
 	public static class MSG_MISSION_REQUEST_LIST extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
@@ -10565,6 +10636,7 @@ public class MAVLink {
 	 */
 	public static class MSG_MISSION_REQUEST_PARTIAL_LIST extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int start_index; // Start index, 0 by default
 		private int end_index; // End index, -1 by default (-1: send list to end). Else a valid index of the list
 		private int target_system; // System ID
@@ -10657,6 +10729,7 @@ public class MAVLink {
 	 */
 	public static class MSG_MISSION_SET_CURRENT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int seq; // Sequence
 		private int target_system; // System ID
 		private int target_component; // Component ID
@@ -10736,6 +10809,7 @@ public class MAVLink {
 	 */
 	public static class MSG_MISSION_WRITE_PARTIAL_LIST extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int start_index; // Start index, 0 by default and smaller / equal to the largest index of the current onboard list.
 		private int end_index; // End index, equal or greater than start index.
 		private int target_system; // System ID
@@ -10828,6 +10902,7 @@ public class MAVLink {
 	 */
 	public static class MSG_NAMED_VALUE_FLOAT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private float value; // Floating point value
 		private char[] name = new char[10]; // Name of the debug variable
@@ -10913,6 +10988,7 @@ public class MAVLink {
 	 */
 	public static class MSG_NAMED_VALUE_INT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private int value; // Signed integer value
 		private char[] name = new char[10]; // Name of the debug variable
@@ -10998,6 +11074,7 @@ public class MAVLink {
 	 */
 	public static class MSG_NAV_CONTROLLER_OUTPUT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float nav_roll; // Current desired roll in degrees
 		private float nav_pitch; // Current desired pitch in degrees
 		private float alt_error; // Current altitude error in meters
@@ -11139,6 +11216,7 @@ public class MAVLink {
 	}
 	public static class MSG_ONBOARD_HEALTH extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long uptime; // Uptime of system
 		private float ram_total; // RAM size in GiB
 		private float swap_total; // Swap size in GiB
@@ -11361,6 +11439,7 @@ public class MAVLink {
 	 */
 	public static class MSG_OPTICAL_FLOW extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (UNIX)
 		private float flow_comp_m_x; // Flow in meters in x-sensor direction, angular-speed compensated
 		private float flow_comp_m_y; // Flow in meters in y-sensor direction, angular-speed compensated
@@ -11505,6 +11584,7 @@ public class MAVLink {
 	 */
 	public static class MSG_OPTICAL_FLOW_RAD extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (microseconds, synced to UNIX time or since system boot)
 		private long integration_time_us; // Integration time in microseconds. Divide integrated_x and integrated_y by the integration time to obtain average flow. The integration time also indicates the.
 		private float integrated_x; // Flow in radians around X axis (Sensor RH rotation about the X axis induces a positive flow. Sensor linear motion along the positive Y axis induces a negative flow.)
@@ -11701,6 +11781,7 @@ public class MAVLink {
 	 */
 	public static class MSG_PARAM_MAP_RC extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float param_value0; // Initial parameter value
 		private float scale; // Scale, maps the RC range [-1, 1] to a parameter value
 		private float param_value_min; // Minimum param value. The protocol does not define if this overwrites an onboard minimum value. (Depends on implementation)
@@ -11864,6 +11945,7 @@ public class MAVLink {
 	 */
 	public static class MSG_PARAM_REQUEST_LIST extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int target_system; // System ID
 		private int target_component; // Component ID
 	
@@ -11930,6 +12012,7 @@ public class MAVLink {
 	 */
 	public static class MSG_PARAM_REQUEST_READ extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int param_index; // Parameter index. Send -1 to use the param ID field as identifier (else the param id will be ignored)
 		private int target_system; // System ID
 		private int target_component; // Component ID
@@ -12028,6 +12111,7 @@ public class MAVLink {
 	 */
 	public static class MSG_PARAM_SET extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float param_value; // Onboard parameter value
 		private int target_system; // System ID
 		private int target_component; // Component ID
@@ -12139,6 +12223,7 @@ public class MAVLink {
 	 */
 	public static class MSG_PARAM_VALUE extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float param_value; // Onboard parameter value
 		private int param_count; // Total number of onboard parameters
 		private int param_index; // Index of this onboard parameter
@@ -12247,6 +12332,7 @@ public class MAVLink {
 	}
 	public static class MSG_PATTERN_DETECTED extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float confidence; // Confidence of detection
 		private int type; // 0: Pattern, 1: Letter
 		private char[] file = new char[100]; // Pattern file name
@@ -12345,6 +12431,7 @@ public class MAVLink {
 	 */
 	public static class MSG_PING extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Unix timestamp in microseconds or since system boot if smaller than MAVLink epoch (1.1.2009)
 		private long seq; // PING sequence
 		private int target_system; // 0: request ping from all receiving systems, if greater than 0: message is a ping response and number is the system id of the requesting system
@@ -12440,6 +12527,7 @@ public class MAVLink {
 	 */
 	public static class MSG_POINT_OF_INTEREST extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float x; // X Position
 		private float y; // Y Position
 		private float z; // Z Position
@@ -12593,6 +12681,7 @@ public class MAVLink {
 	 */
 	public static class MSG_POINT_OF_INTEREST_CONNECTION extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float xp1; // X1 Position
 		private float yp1; // Y1 Position
 		private float zp1; // Z1 Position
@@ -12779,6 +12868,7 @@ public class MAVLink {
 	}
 	public static class MSG_POSITION_CONTROL_SETPOINT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float x; // x position
 		private float y; // y position
 		private float z; // z position
@@ -12884,6 +12974,7 @@ public class MAVLink {
 	 */
 	public static class MSG_POSITION_TARGET_GLOBAL_INT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp in milliseconds since system boot. The rationale for the timestamp in the setpoint is to allow the system to compensate for the transport delay of the setpoint. This allows the system to compensate processing latency.
 		private int lat_int; // X Position in WGS84 frame in 1e7 * meters
 		private int lon_int; // Y Position in WGS84 frame in 1e7 * meters
@@ -13106,6 +13197,7 @@ public class MAVLink {
 	 */
 	public static class MSG_POSITION_TARGET_LOCAL_NED extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp in milliseconds since system boot
 		private float x; // X Position in NED frame in meters
 		private float y; // Y Position in NED frame in meters
@@ -13328,6 +13420,7 @@ public class MAVLink {
 	 */
 	public static class MSG_POWER_STATUS extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int Vcc; // 5V rail voltage in millivolts
 		private int Vservo; // servo rail voltage in millivolts
 		private int flags; // power supply status flags (see MAV_POWER_STATUS enum)
@@ -13407,6 +13500,7 @@ public class MAVLink {
 	 */
 	public static class MSG_RADIO_STATUS extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int rxerrors; // Receive errors
 		private int fixed; // Count of error corrected packets
 		private int rssi; // Local signal strength
@@ -13535,6 +13629,7 @@ public class MAVLink {
 	}
 	public static class MSG_RAW_AUX extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int baro; // Barometric pressure (hecto Pascal)
 		private int adc1; // ADC1 (J405 ADC3, LPC2148 AD0.6)
 		private int adc2; // ADC2 (J405 ADC5, LPC2148 AD0.2)
@@ -13666,6 +13761,7 @@ public class MAVLink {
 	 */
 	public static class MSG_RAW_IMU extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (microseconds since UNIX epoch or microseconds since system boot)
 		private int xacc; // X acceleration (raw)
 		private int yacc; // Y acceleration (raw)
@@ -13836,6 +13932,7 @@ public class MAVLink {
 	 */
 	public static class MSG_RAW_PRESSURE extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (microseconds since UNIX epoch or microseconds since system boot)
 		private int press_abs; // Absolute pressure (raw)
 		private int press_diff1; // Differential pressure 1 (raw)
@@ -13941,6 +14038,7 @@ public class MAVLink {
 	 */
 	public static class MSG_RC_CHANNELS extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private int chan1_raw; // RC channel 1 value, in microseconds. A value of UINT16_MAX implies the channel is unused.
 		private int chan2_raw; // RC channel 2 value, in microseconds. A value of UINT16_MAX implies the channel is unused.
@@ -14254,6 +14352,7 @@ public class MAVLink {
 	 */
 	public static class MSG_RC_CHANNELS_OVERRIDE extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int chan1_raw; // RC channel 1 value, in microseconds. A value of UINT16_MAX means to ignore this field.
 		private int chan2_raw; // RC channel 2 value, in microseconds. A value of UINT16_MAX means to ignore this field.
 		private int chan3_raw; // RC channel 3 value, in microseconds. A value of UINT16_MAX means to ignore this field.
@@ -14424,6 +14523,7 @@ public class MAVLink {
 	 */
 	public static class MSG_RC_CHANNELS_RAW extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private int chan1_raw; // RC channel 1 value, in microseconds. A value of UINT16_MAX implies the channel is unused.
 		private int chan2_raw; // RC channel 2 value, in microseconds. A value of UINT16_MAX implies the channel is unused.
@@ -14607,6 +14707,7 @@ public class MAVLink {
 	 */
 	public static class MSG_RC_CHANNELS_SCALED extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private int chan1_scaled; // RC channel 1 value scaled, (-100%) -10000, (0%) 0, (100%) 10000, (invalid) INT16_MAX.
 		private int chan2_scaled; // RC channel 2 value scaled, (-100%) -10000, (0%) 0, (100%) 10000, (invalid) INT16_MAX.
@@ -14787,6 +14888,7 @@ public class MAVLink {
 	}
 	public static class MSG_REQUEST_DATA_STREAM extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int req_message_rate; // The requested interval between two messages of this type
 		private int target_system; // The target requested to send the message stream.
 		private int target_component; // The target requested to send the message stream.
@@ -14892,6 +14994,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SAFETY_ALLOWED_AREA extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float p1x; // x position 1 / Latitude 1
 		private float p1y; // y position 1 / Longitude 1
 		private float p1z; // z position 1 / Altitude 1
@@ -15023,6 +15126,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SAFETY_SET_ALLOWED_AREA extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float p1x; // x position 1 / Latitude 1
 		private float p1y; // y position 1 / Longitude 1
 		private float p1z; // z position 1 / Altitude 1
@@ -15180,6 +15284,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SCALED_IMU extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private int xacc; // X acceleration (mg)
 		private int yacc; // Y acceleration (mg)
@@ -15350,6 +15455,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SCALED_IMU2 extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private int xacc; // X acceleration (mg)
 		private int yacc; // Y acceleration (mg)
@@ -15520,6 +15626,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SCALED_IMU3 extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private int xacc; // X acceleration (mg)
 		private int yacc; // Y acceleration (mg)
@@ -15690,6 +15797,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SCALED_PRESSURE extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private float press_abs; // Absolute pressure (hectopascal)
 		private float press_diff; // Differential pressure 1 (hectopascal)
@@ -15782,6 +15890,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SCALED_PRESSURE2 extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp (milliseconds since system boot)
 		private float press_abs; // Absolute pressure (hectopascal)
 		private float press_diff; // Differential pressure 1 (hectopascal)
@@ -15874,6 +15983,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SERIAL_CONTROL extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long baudrate; // Baudrate of transfer. Zero means no change.
 		private int timeout; // Timeout for reply data in milliseconds
 		private int device; // See SERIAL_CONTROL_DEV enum
@@ -15998,6 +16108,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SERVO_OUTPUT_RAW extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (microseconds since system boot)
 		private int servo1_raw; // Servo output 1 value, in microseconds
 		private int servo2_raw; // Servo output 2 value, in microseconds
@@ -16168,6 +16279,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SET_ACTUATOR_CONTROL_TARGET extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_usec; // Timestamp (micros since boot or Unix epoch)
 		private float[] controls = new float[8]; // Actuator controls. Normed to -1..+1 where 0 is neutral position. Throttle for single rotation direction motors is 0..1, negative range for reverse direction. Standard mapping for attitude controls (group 0): (index 0-7): roll, pitch, yaw, throttle, flaps, spoilers, airbrakes, landing gear. Load a pass-through mixer to repurpose them as generic outputs.
 		private int group_mlx; // Actuator group. The "_mlx" indicates this is a multi-instance message and a MAVLink parser should use this field to difference between instances.
@@ -16279,6 +16391,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SET_ATTITUDE_TARGET extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp in milliseconds since system boot
 		private float[] q = new float[4]; // Attitude quaternion (w, x, y, z order, zero-rotation is 1, 0, 0, 0)
 		private float body_roll_rate; // Body roll rate in radians per second
@@ -16439,6 +16552,7 @@ public class MAVLink {
 	}
 	public static class MSG_SET_CAM_SHUTTER extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float gain; // Camera gain
 		private int interval; // Shutter interval, in microseconds
 		private int exposure; // Exposure time, in microseconds
@@ -16557,6 +16671,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SET_GPS_GLOBAL_ORIGIN extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int latitude; // Latitude (WGS84), in degrees * 1E7
 		private int longitude; // Longitude (WGS84, in degrees * 1E7
 		private int altitude; // Altitude (AMSL), in meters * 1000 (positive for up)
@@ -16649,6 +16764,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SET_MODE extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long custom_mode; // The new autopilot-specific mode. This field can be ignored by an autopilot.
 		private int target_system; // The system setting the mode
 		private int base_mode; // The new base mode
@@ -16728,6 +16844,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SET_POSITION_CONTROL_OFFSET extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float x; // x position offset
 		private float y; // y position offset
 		private float z; // z position offset
@@ -16846,6 +16963,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SET_POSITION_TARGET_GLOBAL_INT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp in milliseconds since system boot. The rationale for the timestamp in the setpoint is to allow the system to compensate for the transport delay of the setpoint. This allows the system to compensate processing latency.
 		private int lat_int; // X Position in WGS84 frame in 1e7 * meters
 		private int lon_int; // Y Position in WGS84 frame in 1e7 * meters
@@ -17094,6 +17212,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SET_POSITION_TARGET_LOCAL_NED extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_boot_ms; // Timestamp in milliseconds since system boot
 		private float x; // X Position in NED frame in meters
 		private float y; // Y Position in NED frame in meters
@@ -17342,6 +17461,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SIM_STATE extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float q1; // True attitude quaternion component 1, w (1 in null-rotation)
 		private float q2; // True attitude quaternion component 2, x (0 in null-rotation)
 		private float q3; // True attitude quaternion component 3, y (0 in null-rotation)
@@ -17655,6 +17775,7 @@ public class MAVLink {
 	 */
 	public static class MSG_STATUSTEXT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int severity; // Severity of status. Relies on the definitions within RFC-5424. See enum MAV_SEVERITY.
 		private char[] text = new char[50]; // Status text message, without null termination character
 	
@@ -17727,6 +17848,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SYSTEM_TIME extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long time_unix_usec; // Timestamp of the master clock in microseconds since UNIX epoch.
 		private long time_boot_ms; // Timestamp of the component clock since boot time in milliseconds.
 	
@@ -17793,6 +17915,7 @@ public class MAVLink {
 	 */
 	public static class MSG_SYS_STATUS extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long onboard_control_sensors_present; // Bitmask showing which onboard controllers and sensors are present. Value of 0: not present. Value of 1: present. Indices defined by ENUM MAV_SYS_STATUS_SENSOR
 		private long onboard_control_sensors_enabled; // Bitmask showing which onboard controllers and sensors are enabled:  Value of 0: not enabled. Value of 1: enabled. Indices defined by ENUM MAV_SYS_STATUS_SENSOR
 		private long onboard_control_sensors_health; // Bitmask showing which onboard controllers and sensors are operational or have an error:  Value of 0: not enabled. Value of 1: enabled. Indices defined by ENUM MAV_SYS_STATUS_SENSOR
@@ -18002,6 +18125,7 @@ public class MAVLink {
 	 */
 	public static class MSG_TERRAIN_CHECK extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int lat; // Latitude (degrees *10^7)
 		private int lon; // Longitude (degrees *10^7)
 	
@@ -18068,6 +18192,7 @@ public class MAVLink {
 	 */
 	public static class MSG_TERRAIN_DATA extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int lat; // Latitude of SW corner of first grid (degrees *10^7)
 		private int lon; // Longitude of SW corner of first grid (in degrees *10^7)
 		private int grid_spacing; // Grid spacing in meters
@@ -18179,6 +18304,7 @@ public class MAVLink {
 	 */
 	public static class MSG_TERRAIN_REPORT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int lat; // Latitude (degrees *10^7)
 		private int lon; // Longitude (degrees *10^7)
 		private float terrain_height; // Terrain height in meters AMSL
@@ -18310,6 +18436,7 @@ public class MAVLink {
 	 */
 	public static class MSG_TERRAIN_REQUEST extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long mask; // Bitmask of requested 4x4 grids (row major 8x7 array of grids, 56 bits)
 		private int lat; // Latitude of SW corner of first grid (degrees *10^7)
 		private int lon; // Longitude of SW corner of first grid (in degrees *10^7)
@@ -18402,6 +18529,7 @@ public class MAVLink {
 	 */
 	public static class MSG_TIMESYNC extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long tc1; // Time sync timestamp 1
 		private long ts1; // Time sync timestamp 2
 	
@@ -18468,6 +18596,7 @@ public class MAVLink {
 	 */
 	public static class MSG_V2_EXTENSION extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int message_type; // A code that identifies the software component that understands this message (analogous to usb device classes or mime type strings).  If this code is less than 32768, it is considered a 'registered' protocol extension and the corresponding entry should be added to https://github.com/mavlink/mavlink/extension-message-ids.xml.  Software creators can register blocks of message IDs as needed (useful for GCS specific metadata, etc...). Message_types greater than 32767 are considered local experiments and should not be checked in to any widely distributed codebase.
 		private int target_network; // Network ID (0 for broadcast)
 		private int target_system; // System ID (0 for broadcast)
@@ -18579,6 +18708,7 @@ public class MAVLink {
 	 */
 	public static class MSG_VFR_HUD extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private float airspeed; // Current airspeed in m/s
 		private float groundspeed; // Current ground speed in m/s
 		private float alt; // Current altitude (MSL), in meters
@@ -18694,6 +18824,7 @@ public class MAVLink {
 	}
 	public static class MSG_VICON_POSITION_ESTIMATE extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long usec; // Timestamp (microseconds, synced to UNIX time or since system boot)
 		private float x; // Global X position
 		private float y; // Global Y position
@@ -18822,6 +18953,7 @@ public class MAVLink {
 	}
 	public static class MSG_VISION_POSITION_ESTIMATE extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long usec; // Timestamp (microseconds, synced to UNIX time or since system boot)
 		private float x; // Global X position
 		private float y; // Global Y position
@@ -18950,6 +19082,7 @@ public class MAVLink {
 	}
 	public static class MSG_VISION_SPEED_ESTIMATE extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private long usec; // Timestamp (microseconds, synced to UNIX time or since system boot)
 		private float x; // Global X speed
 		private float y; // Global Y speed
@@ -19039,6 +19172,7 @@ public class MAVLink {
 	}
 	public static class MSG_WATCHDOG_COMMAND extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int watchdog_id; // Watchdog ID
 		private int process_id; // Process ID
 		private int target_system_id; // Target system ID
@@ -19128,6 +19262,7 @@ public class MAVLink {
 	}
 	public static class MSG_WATCHDOG_HEARTBEAT extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int watchdog_id; // Watchdog ID
 		private int process_count; // Number of processes
 	
@@ -19191,6 +19326,7 @@ public class MAVLink {
 	}
 	public static class MSG_WATCHDOG_PROCESS_INFO extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int timeout; // Timeout (seconds)
 		private int watchdog_id; // Watchdog ID
 		private int process_id; // Process ID
@@ -19305,6 +19441,7 @@ public class MAVLink {
 	}
 	public static class MSG_WATCHDOG_PROCESS_STATUS extends Message {
 	
+	private static final long serialVersionUID = 1L;
 		private int pid; // PID
 		private int watchdog_id; // Watchdog ID
 		private int process_id; // Process ID

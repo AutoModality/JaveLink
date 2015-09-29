@@ -28,6 +28,7 @@ import java.nio.ByteOrder;
 
 public class MAVLink {
 	
+	@SuppressWarnings("unused")
 	private static final int PROTOCOL_VERSION = $version;
 	private static final short PACKET_START_SIGN = 0xFE; //v1.0: 0xFE; v0.9: 0x55
 	private static final int HEADER_LENGTH = 8; // Overhead size
@@ -52,6 +53,7 @@ public class MAVLink {
 
 	public static abstract class Message extends AMMAVLink {
 		
+		private static final long serialVersionUID = 1L;
 		protected String msgName;
 		
 		public static Message decodeMessage(byte[] bytes) {
@@ -207,6 +209,7 @@ public class MAVLink {
 #end
 	public static class MSG_$message.name extends Message {
 	
+	private static final long serialVersionUID = 1L;
 #foreach( $field in $message.fields )
 		private #getJavaType($field.type)#if($field.array)[]#end $field.name#if($field.array) = new #getJavaType($field.type)[$field.length]#end; // $field.description
 #end
